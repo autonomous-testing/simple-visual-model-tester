@@ -207,7 +207,6 @@ export class ModelTabs {
         </div>
       </div>
       <div class="row">
-        <button class="btn" data-act="save">Save to Browser</button>
         <button class="btn" data-act="test">Test Connection</button>
         <button class="btn danger" data-act="delete" title="Remove model">Delete</button>
       </div>
@@ -232,6 +231,61 @@ export class ModelTabs {
     const headersTa = card.querySelector('textarea[data-field="extraHeaders"]');
     const logEl = card.querySelector('[data-log]');
 
+    // Simple color picker popover anchored to the color input
+    let colorPopover = null;
+    const closeColorPopover = () => {
+      if (colorPopover) {
+        document.body.removeChild(colorPopover);
+        document.removeEventListener('mousedown', onDocDown, true);
+        document.removeEventListener('keydown', onDocKey, true);
+        colorPopover = null;
+      }
+    };
+    const onDocDown = (ev) => {
+      if (!colorPopover) return;
+      if (ev.target === color || colorPopover.contains(ev.target)) return;
+      closeColorPopover();
+    };
+    const onDocKey = (ev) => { if (ev.key === 'Escape') closeColorPopover(); };
+    const showColorPopover = () => {
+      if (colorPopover) return;
+      const rect = color.getBoundingClientRect();
+      const pop = document.createElement('div');
+      pop.className = 'color-popover';
+      pop.innerHTML = `
+        <div class="row" style="align-items:center; gap:8px;">
+          <input type="color" value="${(color.value || '#ffffff').substring(0,7)}" aria-label="Pick color" />
+          <div class="swatches"></div>
+        </div>
+      `;
+      const presets = ['#ff7a7a','#7ad1ff','#c38bff','#3ecf8e','#ff5f6a','#6aa6ff','#f5c542','#9b59b6'];
+      const swWrap = pop.querySelector('.swatches');
+      presets.forEach(hex => {
+        const s = document.createElement('span');
+        s.className = 'mini-swatch';
+        s.style.background = hex;
+        s.title = hex;
+        s.addEventListener('click', () => { color.value = hex; persist(); });
+        swWrap.appendChild(s);
+      });
+      const nativePicker = pop.querySelector('input[type="color"]');
+      nativePicker.addEventListener('input', () => { color.value = nativePicker.value; persist(); });
+      pop.style.position = 'absolute';
+      pop.style.left = `${window.scrollX + rect.left}px`;
+      pop.style.top = `${window.scrollY + rect.bottom + 6}px`;
+      pop.style.zIndex = '1000';
+      document.body.appendChild(pop);
+      colorPopover = pop;
+      // Global listeners to close
+      setTimeout(() => {
+        document.addEventListener('mousedown', onDocDown, true);
+        document.addEventListener('keydown', onDocKey, true);
+      }, 0);
+    };
+
+    color.addEventListener('focus', showColorPopover);
+    color.addEventListener('blur', () => { /* keep open for interactions; closed by outside click */ });
+
     const persist = () => {
       let extra = undefined;
       try {
@@ -254,10 +308,32 @@ export class ModelTabs {
         extraHeaders: extra,
       };
       this.storage.updateModel(updated);
+
+      // Reflect updates in UI without full re-render
+      // Update header tab swatch + label
+      const tabBtn = this.header.querySelector(`.tab-btn[data-model-id="${cfg.id}"]`);
+      if (tabBtn) {
+        const sw = tabBtn.querySelector('.swatch');
+        if (sw) {
+          sw.setAttribute('aria-checked', String(updated.enabled));
+          sw.title = updated.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+          sw.style.background = updated.enabled ? updated.color : 'transparent';
+          sw.style.borderColor = updated.color;
+        }
+        const lab = tabBtn.querySelector('.label');
+        if (lab) lab.textContent = updated.model || '(model id)';
+      }
+      // Update card title and pane aria label
+      const titleEl = card.querySelector('.title');
+      if (titleEl) titleEl.textContent = updated.model || '(model id)';
+      const pane = this.body.querySelector(`#model-pane-${cfg.id}`);
+      if (pane) pane.setAttribute('aria-label', `${updated.model || 'Model'} settings`);
+
+      // Update local cfg reference
+      Object.assign(cfg, updated);
     };
 
     // Button actions
-    card.querySelector('[data-act="save"]').onclick = persist;
     card.querySelector('[data-act="delete"]').onclick = () => {
       if (!confirm('Delete this model?')) return;
       const deletedId = cfg.id;
@@ -281,6 +357,18 @@ export class ModelTabs {
         logEl.textContent = `Error: ${e?.message || e}`;
       }
     };
+
+    // Auto-save on any change
+    enabled.addEventListener('change', persist);
+    color.addEventListener('input', persist);
+    endpointSelect.addEventListener('change', persist);
+    baseURL.addEventListener('input', persist);
+    model.addEventListener('input', persist);
+    key.addEventListener('input', persist);
+    temp.addEventListener('input', persist);
+    maxTok.addEventListener('input', persist);
+    timeout.addEventListener('input', persist);
+    headersTa.addEventListener('input', persist);
 
     return card;
   }

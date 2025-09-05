@@ -136,6 +136,20 @@ h2 { font-size:16px; margin:0; }
   max-height:160px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px;
 }
 
+/* Color popover */
+.color-popover {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+.color-popover .mini-swatch {
+  width: 16px; height: 16px;
+  border-radius: 4px; border: 1px solid #000;
+  display: inline-block; cursor: pointer;
+}
+
 /* Results table */
 .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:8px; }
 table { width:100%; border-collapse: collapse; min-width: 900px; }
