@@ -160,34 +160,10 @@ function renderStorageTab() {
   h.innerHTML = `
     <h3>Storage</h3>
     <div class="row">
-      <button class="btn" id="exportModelsBtn" aria-label="Export model configurations">Export Models</button>
-      <input type="file" id="importModelsInput" accept="application/json" aria-label="Import model configurations"/>
       <button class="btn danger" id="wipeHistoryBtn" aria-label="Wipe all history">Wipe History</button>
     </div>
   `;
   root.appendChild(h);
-
-  document.getElementById('exportModelsBtn').onclick = () => {
-    const data = storage.getModelConfigs();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'model-configs.json'; a.click();
-    URL.revokeObjectURL(url);
-  };
-  document.getElementById('importModelsInput').onchange = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const text = await file.text();
-    try {
-      const json = JSON.parse(text);
-      storage.setModelConfigs(json);
-      modelTabs.render();
-      alert('Imported model configurations.');
-    } catch (err) {
-      alert('Invalid JSON.');
-    }
-  };
   document.getElementById('wipeHistoryBtn').onclick = async () => {
     if (!confirm('Wipe all history? This cannot be undone.')) return;
     await historyStore.wipeAll();

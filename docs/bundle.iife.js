@@ -597,7 +597,6 @@ Rules:
           addBtn.className = "btn";
           addBtn.id = "addModelBtn";
           addBtn.textContent = "+ Add Model";
-          addBtn.style.marginLeft = "auto";
           addBtn.addEventListener("click", () => {
             const newCfg = this.storage.addDefaultModel();
             this.activeId = newCfg.id;
@@ -608,6 +607,48 @@ Rules:
             }, 0);
           });
           this.header.appendChild(addBtn);
+          const actionsWrap = document.createElement("div");
+          actionsWrap.style.marginLeft = "auto";
+          actionsWrap.style.display = "flex";
+          actionsWrap.style.gap = "8px";
+          actionsWrap.style.alignItems = "center";
+          const exportBtn = document.createElement("button");
+          exportBtn.className = "btn";
+          exportBtn.id = "exportModelsBtn";
+          exportBtn.textContent = "Export Models";
+          actionsWrap.appendChild(exportBtn);
+          const importInput = document.createElement("input");
+          importInput.type = "file";
+          importInput.id = "importModelsInput";
+          importInput.accept = "application/json";
+          importInput.setAttribute("aria-label", "Import model configurations");
+          actionsWrap.appendChild(importInput);
+          exportBtn.onclick = () => {
+            const data = this.storage.getModelConfigs();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "model-configs.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          };
+          importInput.onchange = async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const text = await file.text();
+            try {
+              const json = JSON.parse(text);
+              this.storage.setModelConfigs(json);
+              const first = this.storage.getModelConfigs()[0];
+              this.activeId = first?.id || null;
+              this.render();
+              alert("Imported model configurations.");
+            } catch (err) {
+              alert("Invalid JSON.");
+            }
+          };
+          this.header.appendChild(actionsWrap);
         }
         setActive(id) {
           this.activeId = id;
@@ -1481,35 +1522,10 @@ Rules:
         h.innerHTML = `
     <h3>Storage</h3>
     <div class="row">
-      <button class="btn" id="exportModelsBtn" aria-label="Export model configurations">Export Models</button>
-      <input type="file" id="importModelsInput" accept="application/json" aria-label="Import model configurations"/>
       <button class="btn danger" id="wipeHistoryBtn" aria-label="Wipe all history">Wipe History</button>
     </div>
   `;
         root.appendChild(h);
-        document.getElementById("exportModelsBtn").onclick = () => {
-          const data = storage.getModelConfigs();
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "model-configs.json";
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-        document.getElementById("importModelsInput").onchange = async (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-          const text = await file.text();
-          try {
-            const json = JSON.parse(text);
-            storage.setModelConfigs(json);
-            modelTabs.render();
-            alert("Imported model configurations.");
-          } catch (err) {
-            alert("Invalid JSON.");
-          }
-        };
         document.getElementById("wipeHistoryBtn").onclick = async () => {
           if (!confirm("Wipe all history? This cannot be undone.")) return;
           await historyStore.wipeAll();
