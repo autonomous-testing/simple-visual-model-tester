@@ -4,10 +4,12 @@ import { Parser } from '../core/parser.js';
 import { uuid, short } from '../core/utils.js';
 
 export class ModelTabs {
-  constructor(rootEl, storage) {
-    this.root = rootEl;
+  constructor(tabsHeaderEl, tabsBodyEl, storage) {
+    this.header = tabsHeaderEl;
+    this.body = tabsBodyEl;
     this.storage = storage;
     this.parser = new Parser();
+    this.activeId = null;
     this.render();
   }
 
@@ -17,20 +19,67 @@ export class ModelTabs {
 
   render() {
     const configs = this.storage.getModelConfigs();
-    this.root.innerHTML = '';
-    configs.forEach(cfg => this.root.appendChild(this._renderCard(cfg)));
-    // Add "New model" button
-    const addRow = document.createElement('div');
-    addRow.innerHTML = `<button class="btn" id="addModelBtn">+ Add Model</button>`;
-    this.root.appendChild(addRow);
-    addRow.querySelector('#addModelBtn').onclick = () => {
+
+    // Ensure active tab exists
+    if (!this.activeId || !configs.find(m => m.id === this.activeId)) {
+      this.activeId = configs[0]?.id || null;
+    }
+
+    // Clear header and body
+    this.header.innerHTML = '';
+    this.body.innerHTML = '';
+
+    // Build a tab + pane per model
+    configs.forEach(cfg => {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn' + (cfg.id === this.activeId ? ' active' : '');
+      btn.dataset.modelId = cfg.id;
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', cfg.id === this.activeId ? 'true' : 'false');
+      btn.setAttribute('aria-controls', `model-pane-${cfg.id}`);
+      btn.textContent = cfg.displayName || '(untitled model)';
+      btn.addEventListener('click', () => this.setActive(cfg.id));
+      this.header.appendChild(btn);
+
+      const pane = document.createElement('div');
+      pane.id = `model-pane-${cfg.id}`;
+      pane.className = 'tab-pane' + (cfg.id === this.activeId ? ' active' : '');
+      pane.setAttribute('role', 'tabpanel');
+      pane.setAttribute('aria-label', `${cfg.displayName || 'Model'} settings`);
+      pane.appendChild(this._renderCard(cfg));
+      this.body.appendChild(pane);
+    });
+
+    // Add model button at the end of header
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn';
+    addBtn.id = 'addModelBtn';
+    addBtn.textContent = '+ Add Model';
+    addBtn.style.marginLeft = 'auto';
+    addBtn.addEventListener('click', () => {
       const newCfg = this.storage.addDefaultModel();
+      this.activeId = newCfg.id;
       this.render();
       setTimeout(() => {
-        const el = this.root.querySelector(`#model-${newCfg.id}`);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const el = this.body.querySelector(`#model-${newCfg.id}`) || this.body.querySelector(`#model-pane-${newCfg.id}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 0);
-    };
+    });
+    this.header.appendChild(addBtn);
+  }
+
+  setActive(id) {
+    this.activeId = id;
+    // Update header buttons
+    Array.from(this.header.querySelectorAll('.tab-btn')).forEach(b => {
+      const isActive = b.dataset.modelId === id;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    // Update panes
+    Array.from(this.body.querySelectorAll('.tab-pane')).forEach(p => {
+      p.classList.toggle('active', p.id === `model-pane-${id}`);
+    });
   }
 
   _renderCard(cfg) {
@@ -138,7 +187,12 @@ export class ModelTabs {
     card.querySelector('[data-act="save"]').onclick = persist;
     card.querySelector('[data-act="delete"]').onclick = () => {
       if (!confirm('Delete this model?')) return;
-      this.storage.deleteModel(cfg.id);
+      const deletedId = cfg.id;
+      this.storage.deleteModel(deletedId);
+      const remaining = this.storage.getModelConfigs();
+      if (this.activeId === deletedId) {
+        this.activeId = remaining[0]?.id || null;
+      }
       this.render();
     };
 
@@ -158,4 +212,3 @@ export class ModelTabs {
     return card;
   }
 }
-

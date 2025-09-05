@@ -12,7 +12,8 @@ var App = (() => {
     window.addEventListener("keydown", (e) => {
       if (e.code === code && !e.repeat) {
         const el = document.activeElement;
-        const isEditable = !!(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el instanceof HTMLElement && el.isContentEditable));
+        const isEditable = !!(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || // HTMLElement check guards against non-Element activeElement in edge cases
+        el instanceof HTMLElement && el.isContentEditable));
         if (isEditable) return;
         fn();
         e.preventDefault();
@@ -556,10 +557,12 @@ Rules:
       init_parser();
       init_utils();
       ModelTabs = class {
-        constructor(rootEl, storage) {
-          this.root = rootEl;
+        constructor(tabsHeaderEl, tabsBodyEl, storage) {
+          this.header = tabsHeaderEl;
+          this.body = tabsBodyEl;
           this.storage = storage;
           this.parser = new Parser();
+          this.activeId = null;
           this.render();
         }
         getEnabledModels() {
@@ -567,19 +570,55 @@ Rules:
         }
         render() {
           const configs = this.storage.getModelConfigs();
-          this.root.innerHTML = "";
-          configs.forEach((cfg) => this.root.appendChild(this._renderCard(cfg)));
-          const addRow = document.createElement("div");
-          addRow.innerHTML = `<button class="btn" id="addModelBtn">+ Add Model</button>`;
-          this.root.appendChild(addRow);
-          addRow.querySelector("#addModelBtn").onclick = () => {
+          if (!this.activeId || !configs.find((m) => m.id === this.activeId)) {
+            this.activeId = configs[0]?.id || null;
+          }
+          this.header.innerHTML = "";
+          this.body.innerHTML = "";
+          configs.forEach((cfg) => {
+            const btn = document.createElement("button");
+            btn.className = "tab-btn" + (cfg.id === this.activeId ? " active" : "");
+            btn.dataset.modelId = cfg.id;
+            btn.setAttribute("role", "tab");
+            btn.setAttribute("aria-selected", cfg.id === this.activeId ? "true" : "false");
+            btn.setAttribute("aria-controls", `model-pane-${cfg.id}`);
+            btn.textContent = cfg.displayName || "(untitled model)";
+            btn.addEventListener("click", () => this.setActive(cfg.id));
+            this.header.appendChild(btn);
+            const pane = document.createElement("div");
+            pane.id = `model-pane-${cfg.id}`;
+            pane.className = "tab-pane" + (cfg.id === this.activeId ? " active" : "");
+            pane.setAttribute("role", "tabpanel");
+            pane.setAttribute("aria-label", `${cfg.displayName || "Model"} settings`);
+            pane.appendChild(this._renderCard(cfg));
+            this.body.appendChild(pane);
+          });
+          const addBtn = document.createElement("button");
+          addBtn.className = "btn";
+          addBtn.id = "addModelBtn";
+          addBtn.textContent = "+ Add Model";
+          addBtn.style.marginLeft = "auto";
+          addBtn.addEventListener("click", () => {
             const newCfg = this.storage.addDefaultModel();
+            this.activeId = newCfg.id;
             this.render();
             setTimeout(() => {
-              const el = this.root.querySelector(`#model-${newCfg.id}`);
-              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+              const el = this.body.querySelector(`#model-${newCfg.id}`) || this.body.querySelector(`#model-pane-${newCfg.id}`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
             }, 0);
-          };
+          });
+          this.header.appendChild(addBtn);
+        }
+        setActive(id) {
+          this.activeId = id;
+          Array.from(this.header.querySelectorAll(".tab-btn")).forEach((b) => {
+            const isActive = b.dataset.modelId === id;
+            b.classList.toggle("active", isActive);
+            b.setAttribute("aria-selected", isActive ? "true" : "false");
+          });
+          Array.from(this.body.querySelectorAll(".tab-pane")).forEach((p) => {
+            p.classList.toggle("active", p.id === `model-pane-${id}`);
+          });
         }
         _renderCard(cfg) {
           const card = document.createElement("div");
@@ -680,7 +719,12 @@ Rules:
           card.querySelector('[data-act="save"]').onclick = persist;
           card.querySelector('[data-act="delete"]').onclick = () => {
             if (!confirm("Delete this model?")) return;
-            this.storage.deleteModel(cfg.id);
+            const deletedId = cfg.id;
+            this.storage.deleteModel(deletedId);
+            const remaining = this.storage.getModelConfigs();
+            if (this.activeId === deletedId) {
+              this.activeId = remaining[0]?.id || null;
+            }
             this.render();
           };
           card.querySelector('[data-act="test"]').onclick = async () => {
@@ -1327,18 +1371,8 @@ Rules:
       var batchStatus = document.getElementById("batchStatus");
       var batchText = document.getElementById("batchText");
       var batchProgressBar = document.getElementById("batchProgressBar");
-      var bottomTabButtons = Array.from(document.querySelectorAll(".bottom-tabs .tab-btn"));
-      var bottomTabPanes = {
-        models: document.getElementById("tab-models")
-      };
-      bottomTabButtons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          bottomTabButtons.forEach((b) => b.classList.remove("active"));
-          Object.values(bottomTabPanes).forEach((p) => p.classList.remove("active"));
-          btn.classList.add("active");
-          bottomTabPanes[btn.dataset.tab].classList.add("active");
-        });
-      });
+      var modelsTabsHeader = document.getElementById("models-tabs-header");
+      var modelsTabsBody = document.getElementById("models-tabs-body");
       var previewTabButtons = Array.from(document.querySelectorAll(".panel.preview .tab-btn"));
       var previewPanes = {
         preview: document.getElementById("preview-pane"),
@@ -1357,7 +1391,7 @@ Rules:
       var imageLoader = new ImageLoader(canvas);
       var overlay = new OverlayRenderer(canvas, legendEl);
       var resultsTable = new ResultsTable(previewPanes.results, historyStore);
-      var modelTabs = new ModelTabs(bottomTabPanes.models, storage);
+      var modelTabs = new ModelTabs(modelsTabsHeader, modelsTabsBody, storage);
       var historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
       var historyDialog = new HistoryDialog(document.getElementById("historyDialog"), historyStore, overlay, resultsTable, imageLoader);
       var storageRoot = document.getElementById("sidebar-storage");

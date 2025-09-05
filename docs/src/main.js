@@ -25,19 +25,9 @@ const batchStatus = document.getElementById('batchStatus');
 const batchText = document.getElementById('batchText');
 const batchProgressBar = document.getElementById('batchProgressBar');
 
-// Bottom tabs (Models only)
-const bottomTabButtons = Array.from(document.querySelectorAll('.bottom-tabs .tab-btn'));
-const bottomTabPanes = {
-  models: document.getElementById('tab-models'),
-};
-bottomTabButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    bottomTabButtons.forEach(b => b.classList.remove('active'));
-    Object.values(bottomTabPanes).forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    bottomTabPanes[btn.dataset.tab].classList.add('active');
-  });
-});
+// Models tabs (dynamic per model)
+const modelsTabsHeader = document.getElementById('models-tabs-header');
+const modelsTabsBody = document.getElementById('models-tabs-body');
 
 // Preview panel tabs (Preview / Results)
 const previewTabButtons = Array.from(document.querySelectorAll('.panel.preview .tab-btn'));
@@ -60,7 +50,7 @@ const historyStore = new HistoryStore();
 const imageLoader = new ImageLoader(canvas);
 const overlay = new OverlayRenderer(canvas, legendEl);
 const resultsTable = new ResultsTable(previewPanes.results, historyStore);
-const modelTabs = new ModelTabs(bottomTabPanes.models, storage);
+const modelTabs = new ModelTabs(modelsTabsHeader, modelsTabsBody, storage);
 const historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
 const historyDialog = new HistoryDialog(document.getElementById('historyDialog'), historyStore, overlay, resultsTable, imageLoader);
 const storageRoot = document.getElementById('sidebar-storage');
