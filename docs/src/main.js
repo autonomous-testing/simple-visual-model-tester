@@ -2,7 +2,7 @@ import { ImageLoader } from './components/image-loader.js';
 import { OverlayRenderer } from './components/overlay-renderer.js';
 import { ModelTabs } from './components/model-tabs.js';
 import { ResultsTable } from './components/results-table.js';
-import { HistoryDropdown } from './components/history-dropdown.js';
+import { HistoryTable } from './components/history-table.js';
 import { HistoryDialog } from './components/history-dialog.js';
 import { BatchRunner } from './core/batch-runner.js';
 import { Storage } from './core/storage.js';
@@ -11,7 +11,6 @@ import { uuid, clamp, short, onKey } from './core/utils.js';
 
 // Elements
 const fileInput = document.getElementById('fileInput');
-const loadImageBtn = document.getElementById('loadImageBtn');
 const promptEl = document.getElementById('prompt');
 const runBtn = document.getElementById('runBtn');
 const cancelBtn = document.getElementById('cancelBtn');
@@ -19,7 +18,7 @@ const iterationsEl = document.getElementById('iterations');
 const badge = document.getElementById('badge');
 const canvas = document.getElementById('previewCanvas');
 const legendEl = document.getElementById('legend');
-const historyDropdownEl = document.getElementById('historyDropdown');
+const historyTableEl = document.getElementById('historyTable');
 const viewAllHistoryBtn = document.getElementById('viewAllHistoryBtn');
 const batchStatus = document.getElementById('batchStatus');
 const batchText = document.getElementById('batchText');
@@ -59,7 +58,7 @@ const imageLoader = new ImageLoader(canvas);
 const overlay = new OverlayRenderer(canvas, legendEl);
 const resultsTable = new ResultsTable(previewPanes.results, historyStore);
 const modelTabs = new ModelTabs(modelsTabsHeader, modelsTabsBody, storage);
-const historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
+const historyTable = new HistoryTable(historyTableEl, historyStore);
 const historyDialog = new HistoryDialog(document.getElementById('historyDialog'), historyStore, overlay, resultsTable, imageLoader);
 const storageRoot = document.getElementById('sidebar-storage');
 
@@ -69,17 +68,17 @@ let activeBatch = null;
 promptEl.value = storage.getLastPrompt() || '';
 modelTabs.render();
 resultsTable.renderScopeBar();
-historyDropdown.refresh();
+historyTable.refresh();
 
 function setBadge(text) {
   badge.textContent = text;
 }
 
 // Inputs wiring
-loadImageBtn.addEventListener('click', async () => {
+fileInput.addEventListener('change', async () => {
   const file = fileInput.files && fileInput.files[0];
   if (!file) return;
-  const { bitmap, width, height, blob, name } = await imageLoader.loadFile(file);
+  const { bitmap, width, height, name } = await imageLoader.loadFile(file);
   overlay.setImage(bitmap, width, height, name);
   setBadge('Working: Unsaved');
 });
@@ -122,7 +121,16 @@ runBtn.addEventListener('click', async () => {
     showBatchStatus(done, total);
     const seq = runMeta.batchSeq;
     setBadge(`Viewing: Run #${runLabel} • Batch #${runMeta.batchId.slice(-6)} (${seq}/${total})`);
-    historyDropdown.refresh();
+    historyTable.refresh();
+    historyTable.setSelected(runId);
+  };
+  const onRunStart = ({ runMeta }) => {
+    // Show partial row right away and select it
+    historyTable.refresh();
+    historyTable.setSelected(runMeta.id);
+    const seq = runMeta.batchSeq;
+    const runLabel = historyStore.labelForRun(runMeta.id);
+    setBadge(`Viewing: Run #${runLabel} • Batch #${runMeta.batchId.slice(-6)} (${seq}/${iterations})`);
   };
   const onFinish = () => {
     cancelBtn.hidden = true;
@@ -136,7 +144,7 @@ runBtn.addEventListener('click', async () => {
     imageName: img.name,
     prompt,
     enabledModels,
-  }, onProgress).finally(onFinish);
+  }, onProgress, onRunStart).finally(onFinish);
 });
 
 cancelBtn.addEventListener('click', () => {
@@ -148,7 +156,7 @@ cancelBtn.addEventListener('click', () => {
 // History dropdown / dialog
 viewAllHistoryBtn.addEventListener('click', () => historyDialog.open());
 
-historyDropdown.onSelect(async (entry) => {
+historyTable.onSelect(async (entry) => {
   if (!entry) return;
   const { runMeta, runData } = entry;
   const img = await historyStore.getImage(runMeta.imageRef);
@@ -156,7 +164,11 @@ historyDropdown.onSelect(async (entry) => {
   overlay.setImage(bitmap, runMeta.imageW, runMeta.imageH, runMeta.imageName);
   overlay.drawDetections(runData.results.map(r => ({ color: r.color, model: r.modelDisplayName, det: r.parsed?.primary || null })));
   resultsTable.showRun(runMeta, runData);
-  setBadge(`Viewing: Run #${historyDropdown.labelForRun(runMeta.id)} • Batch #${runMeta.batchId.slice(-6)} (${runMeta.batchSeq}/${historyStore.batchIterations(runMeta.batchId)})`);
+  // Also restore the prompt to make re-running easy
+  promptEl.value = runMeta.prompt || '';
+  storage.setLastPrompt(promptEl.value);
+  historyTable.setSelected(runMeta.id);
+  setBadge(`Viewing: Run #${historyTable.labelForRun(runMeta.id)} • Batch #${runMeta.batchId.slice(-6)} (${runMeta.batchSeq}/${historyStore.batchIterations(runMeta.batchId)})`);
 });
 
 // Storage tab (import/export configs and wipe history controls)
@@ -177,7 +189,7 @@ function renderStorageTab() {
     await historyStore.wipeAll();
     overlay.clear();
     resultsTable.clear();
-    historyDropdown.refresh();
+    historyTable.refresh();
     setBadge('Working: Unsaved');
     alert('History wiped.');
   };

@@ -1072,17 +1072,40 @@ Rules:
     }
   });
 
-  // docs/src/components/history-dropdown.js
-  var HistoryDropdown;
-  var init_history_dropdown = __esm({
-    "docs/src/components/history-dropdown.js"() {
-      HistoryDropdown = class {
-        constructor(selectEl, historyStore) {
-          this.selectEl = selectEl;
+  // docs/src/components/history-table.js
+  var HistoryTable;
+  var init_history_table = __esm({
+    "docs/src/components/history-table.js"() {
+      HistoryTable = class {
+        constructor(rootEl, historyStore) {
+          this.root = rootEl;
           this.historyStore = historyStore;
           this.handlers = [];
-          this.selectEl.addEventListener("change", async () => {
-            const runId = this.selectEl.value;
+          this.selectedRunId = null;
+          this._init();
+        }
+        _init() {
+          this.root.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Time</th>
+              <th>Image</th>
+              <th>Prompt</th>
+              <th>OK</th>
+              <th>Err</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    `;
+          this.root.addEventListener("click", async (e) => {
+            const tr = e.target.closest("tr[data-run-id]");
+            if (!tr) return;
+            const runId = tr.getAttribute("data-run-id");
             if (!runId) return;
             const entry = await this.historyStore.loadRunById(runId);
             this.handlers.forEach((fn) => fn(entry));
@@ -1094,13 +1117,38 @@ Rules:
         labelForRun(runId) {
           return this.historyStore.labelForRun(runId);
         }
-        async refresh(limit = 20) {
+        async refresh(limit = 50) {
+          const tbody = this.root.querySelector("tbody");
+          if (!tbody) return;
           const list = await this.historyStore.listAllRuns();
           const recent = list.slice(0, limit);
-          this.selectEl.innerHTML = `<option value="">\u2014 Select a run \u2014</option>` + recent.map((rm) => {
-            const label = `Run #${this.labelForRun(rm.id)} \u2022 ${rm.imageName} \u2022 ${rm.prompt.slice(0, 40)} \u2022 ${new Date(rm.createdAtIso).toLocaleTimeString()}`;
-            return `<option value="${rm.id}">${label}</option>`;
+          if (recent.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6">No runs yet.</td></tr>`;
+            return;
+          }
+          tbody.innerHTML = recent.map((r) => {
+            const time = new Date(r.createdAtIso).toLocaleTimeString();
+            const prompt = (r.prompt || "").slice(0, 80);
+            const sel = r.id === this.selectedRunId ? " selected" : "";
+            return `
+        <tr data-run-id="${r.id}" class="clickable${sel}">
+          <td>${this.labelForRun(r.id)}</td>
+          <td>${time}</td>
+          <td title="${r.imageName}">${r.imageName}</td>
+          <td class="prompt-cell" title="${r.prompt?.replaceAll('"', "&quot;") || ""}">${prompt}</td>
+          <td>${r.summary?.okCount ?? ""}</td>
+          <td>${r.summary?.errorCount ?? ""}</td>
+        </tr>
+      `;
           }).join("");
+        }
+        setSelected(runId) {
+          this.selectedRunId = runId || null;
+          const rows = Array.from(this.root.querySelectorAll("tr[data-run-id]"));
+          rows.forEach((tr) => {
+            if (tr.getAttribute("data-run-id") === this.selectedRunId) tr.classList.add("selected");
+            else tr.classList.remove("selected");
+          });
         }
       };
     }
@@ -1215,7 +1263,7 @@ Rules:
         cancel() {
           this.cancelRequested = true;
         }
-        async runBatch({ iterations, imageBlob, imageName, prompt, enabledModels }, onProgress) {
+        async runBatch({ iterations, imageBlob, imageName, prompt, enabledModels }, onProgress, onRunStart) {
           this.cancelRequested = false;
           const client = new ApiClient();
           const parser = new Parser();
@@ -1235,6 +1283,7 @@ Rules:
             const runMeta = this.history.createRunMeta({ batchMeta, batchSeq: seq, imageW, imageH });
             await this.history.addRunMeta(runMeta);
             await this.history.putRunData(runMeta.id, { id: runMeta.id, results: [], logs: {} });
+            onRunStart?.({ batchId: batchMeta.id, runId: runMeta.id, runMeta });
             const promises = enabledModels.map(async (m) => {
               let status = "ok", latencyMs = null, rawText = "", parsed = null, errorMessage = void 0;
               const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
@@ -1516,14 +1565,13 @@ Rules:
       init_overlay_renderer();
       init_model_tabs();
       init_results_table();
-      init_history_dropdown();
+      init_history_table();
       init_history_dialog();
       init_batch_runner();
       init_storage();
       init_history_store();
       init_utils();
       var fileInput = document.getElementById("fileInput");
-      var loadImageBtn = document.getElementById("loadImageBtn");
       var promptEl = document.getElementById("prompt");
       var runBtn = document.getElementById("runBtn");
       var cancelBtn = document.getElementById("cancelBtn");
@@ -1531,7 +1579,7 @@ Rules:
       var badge = document.getElementById("badge");
       var canvas = document.getElementById("previewCanvas");
       var legendEl = document.getElementById("legend");
-      var historyDropdownEl = document.getElementById("historyDropdown");
+      var historyTableEl = document.getElementById("historyTable");
       var viewAllHistoryBtn = document.getElementById("viewAllHistoryBtn");
       var batchStatus = document.getElementById("batchStatus");
       var batchText = document.getElementById("batchText");
@@ -1562,21 +1610,21 @@ Rules:
       var overlay = new OverlayRenderer(canvas, legendEl);
       var resultsTable = new ResultsTable(previewPanes.results, historyStore);
       var modelTabs = new ModelTabs(modelsTabsHeader, modelsTabsBody, storage);
-      var historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
+      var historyTable = new HistoryTable(historyTableEl, historyStore);
       var historyDialog = new HistoryDialog(document.getElementById("historyDialog"), historyStore, overlay, resultsTable, imageLoader);
       var storageRoot = document.getElementById("sidebar-storage");
       var activeBatch = null;
       promptEl.value = storage.getLastPrompt() || "";
       modelTabs.render();
       resultsTable.renderScopeBar();
-      historyDropdown.refresh();
+      historyTable.refresh();
       function setBadge(text) {
         badge.textContent = text;
       }
-      loadImageBtn.addEventListener("click", async () => {
+      fileInput.addEventListener("change", async () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) return;
-        const { bitmap, width, height, blob, name } = await imageLoader.loadFile(file);
+        const { bitmap, width, height, name } = await imageLoader.loadFile(file);
         overlay.setImage(bitmap, width, height, name);
         setBadge("Working: Unsaved");
       });
@@ -1612,7 +1660,15 @@ Rules:
           showBatchStatus(done, total);
           const seq = runMeta.batchSeq;
           setBadge(`Viewing: Run #${runLabel} \u2022 Batch #${runMeta.batchId.slice(-6)} (${seq}/${total})`);
-          historyDropdown.refresh();
+          historyTable.refresh();
+          historyTable.setSelected(runId);
+        };
+        const onRunStart = ({ runMeta }) => {
+          historyTable.refresh();
+          historyTable.setSelected(runMeta.id);
+          const seq = runMeta.batchSeq;
+          const runLabel = historyStore.labelForRun(runMeta.id);
+          setBadge(`Viewing: Run #${runLabel} \u2022 Batch #${runMeta.batchId.slice(-6)} (${seq}/${iterations})`);
         };
         const onFinish = () => {
           cancelBtn.hidden = true;
@@ -1625,7 +1681,7 @@ Rules:
           imageName: img.name,
           prompt,
           enabledModels
-        }, onProgress).finally(onFinish);
+        }, onProgress, onRunStart).finally(onFinish);
       });
       cancelBtn.addEventListener("click", () => {
         if (activeBatch) {
@@ -1633,7 +1689,7 @@ Rules:
         }
       });
       viewAllHistoryBtn.addEventListener("click", () => historyDialog.open());
-      historyDropdown.onSelect(async (entry) => {
+      historyTable.onSelect(async (entry) => {
         if (!entry) return;
         const { runMeta, runData } = entry;
         const img = await historyStore.getImage(runMeta.imageRef);
@@ -1641,7 +1697,10 @@ Rules:
         overlay.setImage(bitmap, runMeta.imageW, runMeta.imageH, runMeta.imageName);
         overlay.drawDetections(runData.results.map((r) => ({ color: r.color, model: r.modelDisplayName, det: r.parsed?.primary || null })));
         resultsTable.showRun(runMeta, runData);
-        setBadge(`Viewing: Run #${historyDropdown.labelForRun(runMeta.id)} \u2022 Batch #${runMeta.batchId.slice(-6)} (${runMeta.batchSeq}/${historyStore.batchIterations(runMeta.batchId)})`);
+        promptEl.value = runMeta.prompt || "";
+        storage.setLastPrompt(promptEl.value);
+        historyTable.setSelected(runMeta.id);
+        setBadge(`Viewing: Run #${historyTable.labelForRun(runMeta.id)} \u2022 Batch #${runMeta.batchId.slice(-6)} (${runMeta.batchSeq}/${historyStore.batchIterations(runMeta.batchId)})`);
       });
       function renderStorageTab() {
         const root = storageRoot;
@@ -1660,7 +1719,7 @@ Rules:
           await historyStore.wipeAll();
           overlay.clear();
           resultsTable.clear();
-          historyDropdown.refresh();
+          historyTable.refresh();
           setBadge("Working: Unsaved");
           alert("History wiped.");
         };

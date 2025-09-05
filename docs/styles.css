@@ -76,7 +76,11 @@ h2 { font-size:16px; margin:0; }
 .btn.ghost { background: transparent; }
 
 .history { display:flex; gap:8px; align-items:end; width:100%; }
-.history select { flex: 1 1 auto; }
+.history-table .table-wrap { max-height: 220px; }
+.history-table table { min-width: 0; }
+.history-table tr.clickable { cursor: pointer; }
+.history-table tr.selected { background: #1f2431; }
+.history-table .prompt-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .batch-status .progress {
   height:8px; background:#0e1016; border:1px solid var(--border);

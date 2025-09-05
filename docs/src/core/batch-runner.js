@@ -12,7 +12,7 @@ export class BatchRunner {
 
   cancel() { this.cancelRequested = true; }
 
-  async runBatch({ iterations, imageBlob, imageName, prompt, enabledModels }, onProgress) {
+  async runBatch({ iterations, imageBlob, imageName, prompt, enabledModels }, onProgress, onRunStart) {
     this.cancelRequested = false;
     const client = new ApiClient();
     const parser = new Parser();
@@ -36,6 +36,8 @@ export class BatchRunner {
       const runMeta = this.history.createRunMeta({ batchMeta, batchSeq: seq, imageW, imageH });
       await this.history.addRunMeta(runMeta);
       await this.history.putRunData(runMeta.id, { id: runMeta.id, results: [], logs: {} });
+      // Notify UI that a new run started so it can show a partial row immediately
+      onRunStart?.({ batchId: batchMeta.id, runId: runMeta.id, runMeta });
 
       // Kick off parallel calls
       const promises = enabledModels.map(async m => {
