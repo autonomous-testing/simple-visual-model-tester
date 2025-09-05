@@ -25,18 +25,32 @@ const batchStatus = document.getElementById('batchStatus');
 const batchText = document.getElementById('batchText');
 const batchProgressBar = document.getElementById('batchProgressBar');
 
-// Tabs
-const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
-const tabPanes = {
+// Bottom tabs (Models only)
+const bottomTabButtons = Array.from(document.querySelectorAll('.bottom-tabs .tab-btn'));
+const bottomTabPanes = {
   models: document.getElementById('tab-models'),
-  results: document.getElementById('tab-results'),
 };
-tabButtons.forEach(btn => {
+bottomTabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
-    tabButtons.forEach(b => b.classList.remove('active'));
-    Object.values(tabPanes).forEach(p => p.classList.remove('active'));
+    bottomTabButtons.forEach(b => b.classList.remove('active'));
+    Object.values(bottomTabPanes).forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
-    tabPanes[btn.dataset.tab].classList.add('active');
+    bottomTabPanes[btn.dataset.tab].classList.add('active');
+  });
+});
+
+// Preview panel tabs (Preview / Results)
+const previewTabButtons = Array.from(document.querySelectorAll('.panel.preview .tab-btn'));
+const previewPanes = {
+  preview: document.getElementById('preview-pane'),
+  results: document.getElementById('results-pane'),
+};
+previewTabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    previewTabButtons.forEach(b => b.classList.remove('active'));
+    Object.values(previewPanes).forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    previewPanes[btn.dataset.tab].classList.add('active');
   });
 });
 
@@ -45,8 +59,8 @@ const storage = new Storage();
 const historyStore = new HistoryStore();
 const imageLoader = new ImageLoader(canvas);
 const overlay = new OverlayRenderer(canvas, legendEl);
-const resultsTable = new ResultsTable(tabPanes.results, historyStore);
-const modelTabs = new ModelTabs(tabPanes.models, storage);
+const resultsTable = new ResultsTable(previewPanes.results, historyStore);
+const modelTabs = new ModelTabs(bottomTabPanes.models, storage);
 const historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
 const historyDialog = new HistoryDialog(document.getElementById('historyDialog'), historyStore, overlay, resultsTable, imageLoader);
 const storageRoot = document.getElementById('sidebar-storage');

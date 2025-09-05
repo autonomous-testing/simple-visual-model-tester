@@ -1327,25 +1327,37 @@ Rules:
       var batchStatus = document.getElementById("batchStatus");
       var batchText = document.getElementById("batchText");
       var batchProgressBar = document.getElementById("batchProgressBar");
-      var tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
-      var tabPanes = {
-        models: document.getElementById("tab-models"),
-        results: document.getElementById("tab-results")
+      var bottomTabButtons = Array.from(document.querySelectorAll(".bottom-tabs .tab-btn"));
+      var bottomTabPanes = {
+        models: document.getElementById("tab-models")
       };
-      tabButtons.forEach((btn) => {
+      bottomTabButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
-          tabButtons.forEach((b) => b.classList.remove("active"));
-          Object.values(tabPanes).forEach((p) => p.classList.remove("active"));
+          bottomTabButtons.forEach((b) => b.classList.remove("active"));
+          Object.values(bottomTabPanes).forEach((p) => p.classList.remove("active"));
           btn.classList.add("active");
-          tabPanes[btn.dataset.tab].classList.add("active");
+          bottomTabPanes[btn.dataset.tab].classList.add("active");
+        });
+      });
+      var previewTabButtons = Array.from(document.querySelectorAll(".panel.preview .tab-btn"));
+      var previewPanes = {
+        preview: document.getElementById("preview-pane"),
+        results: document.getElementById("results-pane")
+      };
+      previewTabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          previewTabButtons.forEach((b) => b.classList.remove("active"));
+          Object.values(previewPanes).forEach((p) => p.classList.remove("active"));
+          btn.classList.add("active");
+          previewPanes[btn.dataset.tab].classList.add("active");
         });
       });
       var storage = new Storage();
       var historyStore = new HistoryStore();
       var imageLoader = new ImageLoader(canvas);
       var overlay = new OverlayRenderer(canvas, legendEl);
-      var resultsTable = new ResultsTable(tabPanes.results, historyStore);
-      var modelTabs = new ModelTabs(tabPanes.models, storage);
+      var resultsTable = new ResultsTable(previewPanes.results, historyStore);
+      var modelTabs = new ModelTabs(bottomTabPanes.models, storage);
       var historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
       var historyDialog = new HistoryDialog(document.getElementById("historyDialog"), historyStore, overlay, resultsTable, imageLoader);
       var storageRoot = document.getElementById("sidebar-storage");
