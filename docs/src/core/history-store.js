@@ -71,11 +71,12 @@ export class HistoryStore {
   }
 
   snapshotBaseURL(runMeta, modelDisplayName) {
-    const s = runMeta.modelSnapshots.find(m => m.displayName === modelDisplayName);
+    // modelDisplayName now carries the Model ID; support legacy displayName too
+    const s = runMeta.modelSnapshots.find(m => m.model === modelDisplayName || m.displayName === modelDisplayName);
     return s?.baseURL || '';
     }
   snapshotModelId(runMeta, modelDisplayName) {
-    const s = runMeta.modelSnapshots.find(m => m.displayName === modelDisplayName);
+    const s = runMeta.modelSnapshots.find(m => m.model === modelDisplayName || m.displayName === modelDisplayName);
     return s?.model || '';
   }
 
@@ -101,7 +102,6 @@ export class HistoryStore {
       imageRef: { kind:'idb-blob', key: imgHash },
       modelSnapshots: enabledModels.map(m => ({
         modelConfigId: m.id,
-        displayName: m.displayName,
         color: m.color,
         baseURL: m.baseURL,
         model: m.model,
@@ -131,4 +131,3 @@ export class HistoryStore {
     };
   }
 }
-

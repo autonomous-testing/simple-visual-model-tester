@@ -54,7 +54,7 @@ export class BatchRunner {
         }
         const result = {
           modelId: m.id,
-          modelDisplayName: m.displayName,
+          modelDisplayName: m.model,
           color: m.color,
           status,
           latencyMs,
@@ -114,4 +114,3 @@ export class BatchRunner {
     await this.history.putRunData(runId, data);
   }
 }
-

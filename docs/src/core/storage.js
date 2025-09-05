@@ -7,7 +7,6 @@ function defaultModels() {
   return [
     {
       id: uuid(),
-      displayName: 'Server A • gpt-4o-mini',
       color: '#ff7a7a',
       enabled: true,
       baseURL: 'https://api.openai.com/v1',
@@ -21,7 +20,6 @@ function defaultModels() {
     },
     {
       id: uuid(),
-      displayName: 'Server B • responses',
       color: '#7ad1ff',
       enabled: false,
       baseURL: 'https://api.example.com/v1',
@@ -53,7 +51,6 @@ export class Storage {
     const all = this.getModelConfigs();
     const model = {
       id: uuid(),
-      displayName: 'New Model',
       color: '#c38bff',
       enabled: false,
       baseURL: 'https://api.example.com/v1',

@@ -231,7 +231,6 @@ var App = (() => {
     return [
       {
         id: uuid(),
-        displayName: "Server A \u2022 gpt-4o-mini",
         color: "#ff7a7a",
         enabled: true,
         baseURL: "https://api.openai.com/v1",
@@ -245,7 +244,6 @@ var App = (() => {
       },
       {
         id: uuid(),
-        displayName: "Server B \u2022 responses",
         color: "#7ad1ff",
         enabled: false,
         baseURL: "https://api.example.com/v1",
@@ -286,7 +284,6 @@ var App = (() => {
           const all = this.getModelConfigs();
           const model = {
             id: uuid(),
-            displayName: "New Model",
             color: "#c38bff",
             enabled: false,
             baseURL: "https://api.example.com/v1",
@@ -591,7 +588,7 @@ Rules:
             swatch.style.borderColor = cfg.color;
             const label = document.createElement("span");
             label.className = "label";
-            label.textContent = cfg.displayName || "(untitled model)";
+            label.textContent = cfg.model || "(model id)";
             swatch.addEventListener("click", (e) => {
               e.stopPropagation();
               const toggled = { ...cfg, enabled: !cfg.enabled };
@@ -615,7 +612,7 @@ Rules:
             pane.id = `model-pane-${cfg.id}`;
             pane.className = "tab-pane" + (cfg.id === this.activeId ? " active" : "");
             pane.setAttribute("role", "tabpanel");
-            pane.setAttribute("aria-label", `${cfg.displayName || "Model"} settings`);
+            pane.setAttribute("aria-label", `${cfg.model || "Model"} settings`);
             pane.appendChild(this._renderCard(cfg));
             this.body.appendChild(pane);
           });
@@ -693,54 +690,50 @@ Rules:
           card.id = `model-${cfg.id}`;
           card.innerHTML = `
       <div class="header">
-        <span class="title">${cfg.displayName || "(untitled model)"}</span>
+        <span class="title">${cfg.model || "(model id)"}</span>
         <label style="margin-left:auto;"><input type="checkbox" ${cfg.enabled ? "checked" : ""}/> Enabled</label>
       </div>
       <div class="model-grid">
         <div>
-          <label>Display Name</label>
-          <input type="text" value="${cfg.displayName}"/>
-        </div>
-        <div>
           <label>Color (hex)</label>
-          <input type="text" value="${cfg.color}"/>
+          <input data-field="color" type="text" value="${cfg.color}"/>
         </div>
         <div>
           <label>Endpoint Type</label>
-          <select>
+          <select data-field="endpointType">
             <option value="chat" ${cfg.endpointType === "chat" ? "selected" : ""}>chat</option>
             <option value="responses" ${cfg.endpointType === "responses" ? "selected" : ""}>responses</option>
           </select>
         </div>
         <div>
           <label>Base URL</label>
-          <input type="text" value="${cfg.baseURL}" placeholder="https://api.example.com/v1"/>
+          <input data-field="baseURL" type="text" value="${cfg.baseURL}" placeholder="https://api.example.com/v1"/>
         </div>
         <div>
           <label>Model ID</label>
-          <input type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
+          <input data-field="model" type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
         </div>
         <div>
           <label>API Key</label>
-          <input type="password" value="${cfg.apiKey || ""}" placeholder="sk-..."/>
+          <input data-field="apiKey" type="password" value="${cfg.apiKey || ""}" placeholder="sk-..."/>
         </div>
         <div>
           <label>Temperature</label>
-          <input type="number" value="${cfg.temperature ?? 0}" step="0.1"/>
+          <input data-field="temperature" type="number" value="${cfg.temperature ?? 0}" step="0.1"/>
         </div>
         <div>
           <label>Max tokens</label>
-          <input type="number" value="${cfg.maxTokens ?? 300}"/>
+          <input data-field="maxTokens" type="number" value="${cfg.maxTokens ?? 300}"/>
         </div>
         <div>
           <label>Timeout (ms)</label>
-          <input type="number" value="${cfg.timeoutMs ?? 6e4}"/>
+          <input data-field="timeoutMs" type="number" value="${cfg.timeoutMs ?? 6e4}"/>
         </div>
       </div>
       <div class="row">
         <div style="flex:1">
           <label>Extra headers (JSON)</label>
-          <textarea rows="3" placeholder='{"X-Org":"..."}'>${cfg.extraHeaders ? JSON.stringify(cfg.extraHeaders) : ""}</textarea>
+          <textarea data-field="extraHeaders" rows="3" placeholder='{"X-Org":"..."}'>${cfg.extraHeaders ? JSON.stringify(cfg.extraHeaders) : ""}</textarea>
         </div>
       </div>
       <div class="row">
@@ -755,8 +748,16 @@ Rules:
         </div>
       </div>
     `;
-          const [enabled, displayName, color, endpointSelect, baseURL, model, key, temp, maxTok, timeout] = Array.from(card.querySelectorAll("input, select")).slice(0, 10);
-          const headersTa = card.querySelector("textarea");
+          const enabled = card.querySelector('.header input[type="checkbox"]');
+          const color = card.querySelector('input[data-field="color"]');
+          const endpointSelect = card.querySelector('select[data-field="endpointType"]');
+          const baseURL = card.querySelector('input[data-field="baseURL"]');
+          const model = card.querySelector('input[data-field="model"]');
+          const key = card.querySelector('input[data-field="apiKey"]');
+          const temp = card.querySelector('input[data-field="temperature"]');
+          const maxTok = card.querySelector('input[data-field="maxTokens"]');
+          const timeout = card.querySelector('input[data-field="timeoutMs"]');
+          const headersTa = card.querySelector('textarea[data-field="extraHeaders"]');
           const logEl = card.querySelector("[data-log]");
           const persist = () => {
             let extra = void 0;
@@ -769,7 +770,6 @@ Rules:
             const updated = {
               ...cfg,
               enabled: enabled.checked,
-              displayName: displayName.value,
               color: color.value,
               endpointType: endpointSelect.value,
               baseURL: baseURL.value,
@@ -1154,7 +1154,7 @@ Rules:
               }
               const result = {
                 modelId: m.id,
-                modelDisplayName: m.displayName,
+                modelDisplayName: m.model,
                 color: m.color,
                 status,
                 latencyMs,
@@ -1346,11 +1346,11 @@ Rules:
           return idx >= 0 ? this.runs.length - idx : "?";
         }
         snapshotBaseURL(runMeta, modelDisplayName) {
-          const s = runMeta.modelSnapshots.find((m) => m.displayName === modelDisplayName);
+          const s = runMeta.modelSnapshots.find((m) => m.model === modelDisplayName || m.displayName === modelDisplayName);
           return s?.baseURL || "";
         }
         snapshotModelId(runMeta, modelDisplayName) {
-          const s = runMeta.modelSnapshots.find((m) => m.displayName === modelDisplayName);
+          const s = runMeta.modelSnapshots.find((m) => m.model === modelDisplayName || m.displayName === modelDisplayName);
           return s?.model || "";
         }
         async loadRunById(runId) {
@@ -1376,7 +1376,6 @@ Rules:
             imageRef: { kind: "idb-blob", key: imgHash },
             modelSnapshots: enabledModels.map((m) => ({
               modelConfigId: m.id,
-              displayName: m.displayName,
               color: m.color,
               baseURL: m.baseURL,
               model: m.model,
