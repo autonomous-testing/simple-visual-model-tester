@@ -11,6 +11,9 @@ var App = (() => {
   function onKey(code, fn) {
     window.addEventListener("keydown", (e) => {
       if (e.code === code && !e.repeat) {
+        const el = document.activeElement;
+        const isEditable = !!(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el instanceof HTMLElement && el.isContentEditable));
+        if (isEditable) return;
         fn();
         e.preventDefault();
       }

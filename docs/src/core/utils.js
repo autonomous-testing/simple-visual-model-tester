@@ -3,7 +3,21 @@ export const short = (s, n=32) => (s && s.length > n) ? (s.slice(0, n) + '…') 
 
 export function onKey(code, fn) {
   window.addEventListener('keydown', (e) => {
-    if (e.code === code && !e.repeat) { fn(); e.preventDefault(); }
+    if (e.code === code && !e.repeat) {
+      // Ignore shortcuts while typing in inputs/textareas/contenteditable
+      const el = document.activeElement;
+      const isEditable = !!(el && (
+        (el.tagName === 'INPUT') ||
+        (el.tagName === 'TEXTAREA') ||
+        (el.tagName === 'SELECT') ||
+        // HTMLElement check guards against non-Element activeElement in edge cases
+        ((el instanceof HTMLElement) && el.isContentEditable)
+      ));
+      if (isEditable) return;
+
+      fn();
+      e.preventDefault();
+    }
   });
 }
 
