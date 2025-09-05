@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UI Element Locator — Multi‑Model LLM Visual Evaluator</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="app-header" role="banner" aria-label="App header">
+    <h1>UI Element Locator — Visual Evaluator (MVP)</h1>
+    <div id="badge" class="badge" aria-live="polite">Working: Unsaved</div>
+  </header>
+
+  <main class="layout" role="main">
+    <!-- Inputs Panel (Left) -->
+    <section class="panel inputs" aria-label="Inputs panel">
+      <div class="section-block">
+        <label for="fileInput">Choose Image</label>
+        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Choose Image" />
+        <button id="loadImageBtn" class="btn" aria-label="Load Selected Image">Load Selected Image</button>
+      </div>
+
+      <div class="section-block">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" rows="5" placeholder="Find the primary ‘Sign in’ button." aria-label="Prompt"></textarea>
+      </div>
+
+      <div class="section-inline">
+        <div>
+          <label for="iterations">Iterations</label>
+          <input id="iterations" type="number" min="1" max="50" value="1" aria-label="Iterations" />
+        </div>
+        <div class="actions">
+          <button id="runBtn" class="btn primary" aria-label="Run on Enabled Models" title="Shortcut: R">Run on Enabled Models</button>
+          <button id="cancelBtn" class="btn danger" aria-label="Cancel Batch" title="Shortcut: Esc" hidden>Cancel Batch</button>
+        </div>
+      </div>
+
+      <div class="section-inline">
+        <div class="history">
+          <label for="historyDropdown">History</label>
+          <select id="historyDropdown" aria-label="History"></select>
+          <button id="viewAllHistoryBtn" class="btn ghost" aria-label="View all…">View all…</button>
+        </div>
+      </div>
+
+      <div id="batchStatus" class="batch-status" aria-live="polite" hidden>
+        <div id="batchText">Batch progress: 0/0</div>
+        <div class="progress"><div id="batchProgressBar" class="bar" style="width:0%"></div></div>
+      </div>
+    </section>
+
+    <!-- Preview Panel (Right) -->
+    <section class="panel preview" aria-label="Preview panel">
+      <div class="canvas-wrap">
+        <canvas id="previewCanvas" aria-label="Image preview canvas"></canvas>
+      </div>
+      <div id="legend" class="legend" aria-label="Legend"></div>
+    </section>
+  </main>
+
+  <!-- Bottom Tabs -->
+  <section class="bottom-tabs" aria-label="Bottom tabs">
+    <div class="tabs-header" role="tablist" aria-label="Bottom tabs header">
+      <button class="tab-btn active" data-tab="models" role="tab" aria-selected="true">Models</button>
+      <button class="tab-btn" data-tab="results" role="tab">Results</button>
+      <button class="tab-btn" data-tab="storage" role="tab">Storage</button>
+    </div>
+
+    <div class="tabs-body">
+      <div id="tab-models" class="tab-pane active" role="tabpanel" aria-label="Models tab"></div>
+      <div id="tab-results" class="tab-pane" role="tabpanel" aria-label="Results tab"></div>
+      <div id="tab-storage" class="tab-pane" role="tabpanel" aria-label="Storage tab"></div>
+    </div>
+  </section>
+
+  <!-- History dialog -->
+  <dialog id="historyDialog" aria-label="History dialog">
+    <form method="dialog">
+      <header class="dialog-header">
+        <h2>Runs History</h2>
+        <div class="dialog-actions">
+          <label><input id="groupByBatchToggle" type="checkbox" /> Group by Batch</label>
+          <button class="btn ghost" value="cancel">Close</button>
+        </div>
+      </header>
+      <div id="historyDialogBody" class="dialog-body"></div>
+    </form>
+  </dialog>
+
+  <footer class="app-footer" role="contentinfo">
+    <small>Keyboard: R = Run, Esc = Cancel Batch.</small>
+  </footer>
+
+  <script>
+    (function(){
+      var s = document.createElement('script');
+      if (location.protocol === 'file:') {
+        // Local file: use non-module bundle to avoid CORS on module imports
+        s.src = './bundle.iife.js';
+      } else {
+        // Served over http(s): load ESM entry
+        s.type = 'module';
+        s.src = './src/main.js';
+      }
+      s.defer = true;
+      document.currentScript.parentNode.insertBefore(s, document.currentScript);
+    })();
+  </script>
+</body>
+</html>

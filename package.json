@@ -1,0 +1,28 @@
+{
+  "name": "simple-visual-model-tester",
+  "version": "1.0.0",
+  "description": "Browser‑only MVP to send one prompt + one image to multiple OpenAI‑compatible **vision** models in parallel, draw detections on a canvas, log per‑model traffic, persist **Runs** and **Batches**, and export CSV.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build": "esbuild docs/src/main.js --bundle --format=iife --global-name=App --outfile=docs/bundle.iife.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/autonomous-testing/simple-visual-model-tester.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/autonomous-testing/simple-visual-model-tester/issues"
+  },
+  "homepage": "https://github.com/autonomous-testing/simple-visual-model-tester#readme",
+  "devDependencies": {
+    "esbuild": "^0.25.9"
+  }
+}
