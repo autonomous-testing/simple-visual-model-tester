@@ -1330,8 +1330,7 @@ Rules:
       var tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
       var tabPanes = {
         models: document.getElementById("tab-models"),
-        results: document.getElementById("tab-results"),
-        storage: document.getElementById("tab-storage")
+        results: document.getElementById("tab-results")
       };
       tabButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1349,6 +1348,7 @@ Rules:
       var modelTabs = new ModelTabs(tabPanes.models, storage);
       var historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
       var historyDialog = new HistoryDialog(document.getElementById("historyDialog"), historyStore, overlay, resultsTable, imageLoader);
+      var storageRoot = document.getElementById("sidebar-storage");
       var activeBatch = null;
       promptEl.value = storage.getLastPrompt() || "";
       modelTabs.render();
@@ -1428,7 +1428,7 @@ Rules:
         setBadge(`Viewing: Run #${historyDropdown.labelForRun(runMeta.id)} \u2022 Batch #${runMeta.batchId.slice(-6)} (${runMeta.batchSeq}/${historyStore.batchIterations(runMeta.batchId)})`);
       });
       function renderStorageTab() {
-        const root = tabPanes.storage;
+        const root = storageRoot;
         root.innerHTML = "";
         const h = document.createElement("div");
         h.className = "section-block";

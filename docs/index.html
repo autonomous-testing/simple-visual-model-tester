@@ -45,6 +45,9 @@
         </div>
       </div>
 
+      <!-- Storage management moved here below History -->
+      <div id="sidebar-storage" class="section-block" aria-label="Storage management"></div>
+
       <div id="batchStatus" class="batch-status" aria-live="polite" hidden>
         <div id="batchText">Batch progress: 0/0</div>
         <div class="progress"><div id="batchProgressBar" class="bar" style="width:0%"></div></div>
@@ -65,13 +68,11 @@
     <div class="tabs-header" role="tablist" aria-label="Bottom tabs header">
       <button class="tab-btn active" data-tab="models" role="tab" aria-selected="true">Models</button>
       <button class="tab-btn" data-tab="results" role="tab">Results</button>
-      <button class="tab-btn" data-tab="storage" role="tab">Storage</button>
     </div>
 
     <div class="tabs-body">
       <div id="tab-models" class="tab-pane active" role="tabpanel" aria-label="Models tab"></div>
       <div id="tab-results" class="tab-pane" role="tabpanel" aria-label="Results tab"></div>
-      <div id="tab-storage" class="tab-pane" role="tabpanel" aria-label="Storage tab"></div>
     </div>
   </section>
 

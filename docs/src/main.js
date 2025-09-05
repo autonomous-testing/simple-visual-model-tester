@@ -30,7 +30,6 @@ const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
 const tabPanes = {
   models: document.getElementById('tab-models'),
   results: document.getElementById('tab-results'),
-  storage: document.getElementById('tab-storage'),
 };
 tabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -50,6 +49,7 @@ const resultsTable = new ResultsTable(tabPanes.results, historyStore);
 const modelTabs = new ModelTabs(tabPanes.models, storage);
 const historyDropdown = new HistoryDropdown(historyDropdownEl, historyStore);
 const historyDialog = new HistoryDialog(document.getElementById('historyDialog'), historyStore, overlay, resultsTable, imageLoader);
+const storageRoot = document.getElementById('sidebar-storage');
 
 let activeBatch = null;
 
@@ -149,7 +149,7 @@ historyDropdown.onSelect(async (entry) => {
 
 // Storage tab (import/export configs and wipe history controls)
 function renderStorageTab() {
-  const root = tabPanes.storage;
+  const root = storageRoot;
   root.innerHTML = '';
   const h = document.createElement('div');
   h.className = 'section-block';
