@@ -95,20 +95,6 @@
     <small>Keyboard: R = Run, Esc = Cancel Batch.</small>
   </footer>
 
-  <script>
-    (function(){
-      var s = document.createElement('script');
-      if (location.protocol === 'file:') {
-        // Local file: use non-module bundle to avoid CORS on module imports
-        s.src = './bundle.iife.js';
-      } else {
-        // Served over http(s): load ESM entry
-        s.type = 'module';
-        s.src = './src/main.js';
-      }
-      s.defer = true;
-      document.currentScript.parentNode.insertBefore(s, document.currentScript);
-    })();
-  </script>
+  <script src="./loader.js" defer></script>
 </body>
 </html>
