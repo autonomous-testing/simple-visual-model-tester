@@ -327,10 +327,11 @@ var App = (() => {
         async testConnection(model) {
           const url = this._endpointUrl(model);
           const t0 = performance.now();
+          const body = model.endpointType === "responses" ? { model: model.model, max_output_tokens: 1, input: [{ role: "user", content: [{ type: "text", text: "ping" }] }] } : { model: model.model, max_tokens: 1, messages: [{ role: "user", content: [{ type: "text", text: "ping" }] }] };
           const res = await fetch(url, {
             method: "POST",
             headers: this._headers(model),
-            body: JSON.stringify({ model: model.model, max_tokens: 1, messages: [{ role: "user", content: [{ type: "text", text: "ping" }] }] })
+            body: JSON.stringify(body)
           });
           const timeMs = Math.round(performance.now() - t0);
           return { ok: res.ok, status: res.status, timeMs };
@@ -366,8 +367,8 @@ Rules:
               input: [
                 { role: "system", content: [{ type: "text", text: sysPrompt }] },
                 { role: "user", content: [
-                  { type: "input_text", text: prompt },
-                  { type: "input_image", image_url: b64 }
+                  { type: "text", text: prompt },
+                  { type: "image_url", image_url: { url: b64 } }
                 ] }
               ],
               response_format: { type: "json_object" }
@@ -380,8 +381,8 @@ Rules:
               messages: [
                 { role: "system", content: [{ type: "text", text: sysPrompt }] },
                 { role: "user", content: [
-                  { type: "input_text", text: prompt },
-                  { type: "input_image", image_url: b64 }
+                  { type: "text", text: prompt },
+                  { type: "image_url", image_url: { url: b64 } }
                 ] }
               ],
               response_format: { type: "json_object" }
