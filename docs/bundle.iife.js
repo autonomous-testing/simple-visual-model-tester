@@ -461,11 +461,12 @@ Rules:
           return endpointType === "responses" ? `${base}/responses` : `${base}/chat/completions`;
         }
         _headers({ apiKey, extraHeaders }) {
-          return {
+          const base = {
             "Content-Type": "application/json",
-            "Authorization": apiKey ? `Bearer ${apiKey}` : void 0,
             ...extraHeaders || {}
           };
+          if (apiKey) base["Authorization"] = `Bearer ${apiKey}`;
+          return base;
         }
         _sanitizeHeaders(h) {
           const clone = { ...h };
