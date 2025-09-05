@@ -37,7 +37,34 @@ export class ModelTabs {
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', cfg.id === this.activeId ? 'true' : 'false');
       btn.setAttribute('aria-controls', `model-pane-${cfg.id}`);
-      btn.textContent = cfg.displayName || '(untitled model)';
+      // Swatch acts as an enable/disable switch
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.setAttribute('role', 'switch');
+      swatch.setAttribute('aria-checked', String(cfg.enabled));
+      swatch.title = cfg.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+      swatch.style.background = cfg.enabled ? cfg.color : 'transparent';
+      swatch.style.borderColor = cfg.color;
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = cfg.displayName || '(untitled model)';
+      swatch.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const toggled = { ...cfg, enabled: !cfg.enabled };
+        this.storage.updateModel(toggled);
+        cfg.enabled = toggled.enabled;
+        swatch.setAttribute('aria-checked', String(cfg.enabled));
+        swatch.title = cfg.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+        swatch.style.background = cfg.enabled ? cfg.color : 'transparent';
+        swatch.style.borderColor = cfg.color;
+        const paneCard = this.body.querySelector(`#model-${cfg.id}`);
+        if (paneCard) {
+          const chk = paneCard.querySelector('input[type="checkbox"]');
+          if (chk) chk.checked = cfg.enabled;
+        }
+      });
+      btn.appendChild(swatch);
+      btn.appendChild(label);
       btn.addEventListener('click', () => this.setActive(cfg.id));
       this.header.appendChild(btn);
 
@@ -133,7 +160,6 @@ export class ModelTabs {
     card.id = `model-${cfg.id}`;
     card.innerHTML = `
       <div class="header">
-        <span class="swatch" style="background:${cfg.color}"></span>
         <span class="title">${cfg.displayName || '(untitled model)'}</span>
         <label style="margin-left:auto;"><input type="checkbox" ${cfg.enabled ? 'checked':''}/> Enabled</label>
       </div>
