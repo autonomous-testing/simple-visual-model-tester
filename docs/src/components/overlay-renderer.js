@@ -39,6 +39,10 @@ export class OverlayRenderer {
     const cssW = parent.clientWidth;
     const cssH = parent.clientHeight;
 
+    // If the preview pane is hidden (display:none), it will report 0x0.
+    // Avoid shrinking the canvas to 1px; defer until visible again.
+    if (cssW === 0 || cssH === 0) return;
+
     const imgW = this.image.width;
     const imgH = this.image.height;
 
@@ -123,4 +127,3 @@ export class OverlayRenderer {
     ctx.restore();
   }
 }
-

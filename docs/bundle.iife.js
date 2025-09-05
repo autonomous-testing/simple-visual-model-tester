@@ -151,6 +151,7 @@ var App = (() => {
           const parent = this.canvas.parentElement;
           const cssW = parent.clientWidth;
           const cssH = parent.clientHeight;
+          if (cssW === 0 || cssH === 0) return;
           const imgW = this.image.width;
           const imgH = this.image.height;
           const scale = Math.min(cssW / imgW, cssH / imgH);
@@ -1548,6 +1549,11 @@ Rules:
           Object.values(previewPanes).forEach((p) => p.classList.remove("active"));
           btn.classList.add("active");
           previewPanes[btn.dataset.tab].classList.add("active");
+          if (btn.dataset.tab === "preview") {
+            requestAnimationFrame(() => {
+              window.dispatchEvent(new Event("resize"));
+            });
+          }
         });
       });
       var storage = new Storage();

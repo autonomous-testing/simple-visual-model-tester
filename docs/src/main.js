@@ -41,6 +41,14 @@ previewTabButtons.forEach(btn => {
     Object.values(previewPanes).forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     previewPanes[btn.dataset.tab].classList.add('active');
+    // When switching back to the Preview tab, ensure canvas is redrawn
+    // after it becomes visible so dimensions are correct.
+    if (btn.dataset.tab === 'preview') {
+      requestAnimationFrame(() => {
+        // Trigger a resize so OverlayRenderer redraws reliably
+        window.dispatchEvent(new Event('resize'));
+      });
+    }
   });
 });
 
