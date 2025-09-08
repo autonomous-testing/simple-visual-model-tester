@@ -4,13 +4,13 @@ Browser‑only MVP to send one prompt + one image to multiple OpenAI‑compatibl
 
 ## Quick Start
 
-1. Host the `docs/` folder as static files (no server logic required). Any simple HTTP server works, e.g.:
+1. Host the `app/` folder as static files (no server logic required). Any simple HTTP server works, e.g.:
 
 ```bash
 # Python
-python3 -m http.server -d docs 8080
+python3 -m http.server -d app 8080
 # or
-npx http-server docs -p 8080
+npx http-server app -p 8080
 ```
 
 2. Open `http://localhost:8080` in a modern desktop browser (Chrome/Edge/Safari/Firefox).
@@ -44,15 +44,15 @@ npx http-server docs -p 8080
 
 ## GitHub Pages
 
-- Source: `main` branch, folder `/docs`.
+- Source: `main` branch, folder `/app`.
 - URL (after enabling): https://autonomous-testing.github.io/simple-visual-model-tester/
 
-Enable in GitHub: Settings → Pages → Build and deployment → Source: "Deploy from a branch" → Branch: `main` → Folder: `/docs` → Save.
+Enable in GitHub: Settings → Pages → Build and deployment → Source: "Deploy from a branch" → Branch: `main` → Folder: `/app` → Save.
 
 ## Folder Layout
 
 ```
-docs/
+app/
   index.html
   styles.css
   .nojekyll

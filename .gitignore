@@ -2,5 +2,5 @@
 node_modules/
 
 # Build artifacts
-docs/bundle.iife.js
+app/bundle.iife.js
 
