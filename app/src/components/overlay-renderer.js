@@ -101,20 +101,20 @@ export class OverlayRenderer {
       ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y);
       ctx.moveTo(x, y - 8); ctx.lineTo(x, y + 8);
       ctx.stroke();
-      this._label(ctx, x + 8, y - 8, model);
+      this._label(ctx, x + 8, y - 8, model, color);
     } else if (det.type === 'bbox') {
       const x = det.x * scaleX;
       const y = det.y * scaleY;
       const w = det.width * scaleX;
       const h = det.height * scaleY;
       ctx.strokeRect(x, y, w, h);
-      this._label(ctx, x, Math.max(0, y - 6), model);
+      this._label(ctx, x, Math.max(0, y - 6), model, color);
     }
 
     ctx.restore();
   }
 
-  _label(ctx, x, y, text) {
+  _label(ctx, x, y, text, textColor) {
     const pad = 3;
     const metrics = ctx.measureText(text);
     const w = metrics.width + pad*2;
@@ -122,7 +122,7 @@ export class OverlayRenderer {
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(x, y - h, w, h);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = textColor || '#fff';
     ctx.fillText(text, x + pad, y - pad);
     ctx.restore();
   }
