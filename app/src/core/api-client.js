@@ -66,8 +66,8 @@ export class ApiClient {
           { role:'system', content:[ sysTextPartResponses ]},
           { role:'user', content:[ textPartResponses, imagePartResponses ]}
         ],
-        // Responses API uses text.format for JSON mode (Azure and new OpenAI spec)
-        text: { format: 'json' }
+        // Responses API: JSON mode via text.format object (e.g., { type: 'json_object' })
+        text: { format: { type: 'json_object' } }
       };
     } else {
       // chat
