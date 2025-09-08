@@ -180,6 +180,10 @@ export class ModelTabs {
           <input data-field="baseURL" type="text" value="${cfg.baseURL}" placeholder="https://api.example.com/v1"/>
         </div>
         <div>
+          <label>API Version</label>
+          <input data-field="apiVersion" type="text" value="${cfg.apiVersion || ''}" placeholder="2024-08-01-preview"/>
+        </div>
+        <div>
           <label>Model ID</label>
           <input data-field="model" type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
         </div>
@@ -223,6 +227,7 @@ export class ModelTabs {
     const endpointSelect = card.querySelector('select[data-field="endpointType"]');
     const baseURL = card.querySelector('input[data-field="baseURL"]');
     const model = card.querySelector('input[data-field="model"]');
+    const apiVersion = card.querySelector('input[data-field="apiVersion"]');
     const key = card.querySelector('input[data-field="apiKey"]');
     const temp = card.querySelector('input[data-field="temperature"]');
     const maxTok = card.querySelector('input[data-field="maxTokens"]');
@@ -300,6 +305,7 @@ export class ModelTabs {
         color: color.value,
         endpointType: endpointSelect.value,
         baseURL: baseURL.value,
+        apiVersion: apiVersion.value,
         model: model.value,
         apiKey: key.value,
         temperature: Number(temp.value),
@@ -364,6 +370,7 @@ export class ModelTabs {
     endpointSelect.addEventListener('change', persist);
     baseURL.addEventListener('input', persist);
     model.addEventListener('input', persist);
+    apiVersion.addEventListener('input', persist);
     key.addEventListener('input', persist);
     temp.addEventListener('input', persist);
     maxTok.addEventListener('input', persist);

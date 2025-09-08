@@ -17,16 +17,16 @@ export class ApiClient {
       : { model: model.model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] };
     const res = await fetch(url, {
       method: 'POST',
-      headers: this._headers(model),
+      headers: this._headers({ apiKey: model.apiKey, extraHeaders: model.extraHeaders, baseURL: model.baseURL }),
       body: JSON.stringify(body),
     });
     const timeMs = Math.round(performance.now() - t0);
     return { ok: res.ok, status: res.status, timeMs };
   }
 
-  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000 }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
-    const url = this._endpointUrl({ baseURL, endpointType });
-    const headers = this._headers({ apiKey, extraHeaders });
+  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000, apiVersion }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
+    const url = this._endpointUrl({ baseURL, endpointType, apiVersion });
+    const headers = this._headers({ apiKey, extraHeaders, baseURL });
     const b64 = await blobToDataURL(imageBlob);
 
     const sysPrompt = this._fillTemplate(systemPromptTemplate || '', {
@@ -138,9 +138,29 @@ export class ApiClient {
     }
   }
 
-  _endpointUrl({ baseURL, endpointType }) {
-    const base = baseURL.replace(/\/$/, '');
-    return endpointType === 'responses' ? `${base}/responses` : `${base}/chat/completions`;
+  _endpointUrl({ baseURL, endpointType, apiVersion }) {
+    // Be tolerant of full URLs (with query strings like ?api-version=...) and plain bases.
+    // If there's a query string, append the endpoint path to the pathname, not after the query.
+    try {
+      const u = new URL(baseURL);
+      const path = (u.pathname || '').replace(/\/$/, '');
+      const alreadyHas = /\/(responses|chat\/completions)$/.test(path);
+      if (!alreadyHas) {
+        u.pathname = path + (endpointType === 'responses' ? '/responses' : '/chat/completions');
+      }
+      // Append api-version if provided and not present
+      const hasApiVersion = u.searchParams.has('api-version');
+      if (apiVersion && !hasApiVersion) u.searchParams.set('api-version', apiVersion);
+      return u.toString();
+    } catch (_) {
+      // Not an absolute URL; fallback to simple concatenation
+      const base = String(baseURL || '').replace(/\/$/, '');
+      const url = endpointType === 'responses' ? `${base}/responses` : `${base}/chat/completions`;
+      if (apiVersion && !/api-version=/.test(url)) {
+        return url + (url.includes('?') ? `&api-version=${apiVersion}` : `?api-version=${apiVersion}`);
+      }
+      return url;
+    }
   }
   _fillTemplate(template, data) {
     if (!template || typeof template !== 'string') return '';
@@ -149,17 +169,28 @@ export class ApiClient {
       return v == null ? m : String(v);
     });
   }
-  _headers({ apiKey, extraHeaders }) {
+  _headers({ apiKey, extraHeaders, baseURL }) {
     const base = {
       'Content-Type': 'application/json',
       ...(extraHeaders || {}),
     };
-    if (apiKey) base['Authorization'] = `Bearer ${apiKey}`;
+    const hasAuth = Object.keys(base).some(k => /^(authorization|api-key)$/i.test(k));
+    if (apiKey && !hasAuth) {
+      const isAzure = /\.azure\.com$/i.test(new URL(String(baseURL || 'http://x')).host) || /\.azure\.com\//i.test(String(baseURL || ''));
+      if (isAzure) {
+        base['api-key'] = apiKey;
+      } else {
+        base['Authorization'] = `Bearer ${apiKey}`;
+      }
+    }
     return base;
   }
   _sanitizeHeaders(h) {
     const clone = { ...h };
     delete clone['Authorization'];
+    delete clone['authorization'];
+    delete clone['api-key'];
+    delete clone['Api-Key'];
     return clone;
   }
   _extractTextFromResponse(j, endpointType) {
