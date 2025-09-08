@@ -159,81 +159,90 @@ export class ModelTabs {
     card.className = 'model-card';
     card.id = `model-${cfg.id}`;
     card.innerHTML = `
-      <div class="header">
-        <span class="title">${cfg.model || '(model id)'}</span>
-        <label style="margin-left:auto;"><input type="checkbox" ${cfg.enabled ? 'checked':''}/> Enabled</label>
+      <div class="two-col">
+        <div class="col left">
+          <div class="model-section">
+            <div class="model-grid wide">
+              <div class="switch-cell">
+                <label>Enabled</label>
+                <label class="switch"><input type="checkbox" aria-label="Enabled" ${cfg.enabled ? 'checked':''}/></label>
+              </div>
+              <div>
+                <label>Model color (hex)</label>
+                <input data-field="color" type="text" value="${cfg.color}"/>
+              </div>
+              <div>
+                <label>Model ID</label>
+                <input data-field="model" type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
+              </div>
+              <div class="full">
+                <label>Base URL</label>
+                <input data-field="baseURL" type="text" value="${cfg.baseURL}" placeholder="https://api.example.com/v1"/>
+              </div>
+              <div>
+                <label>API Key</label>
+                <input data-field="apiKey" type="password" value="${cfg.apiKey || ''}" placeholder="sk-..."/>
+              </div>
+              <div>
+                <label>API Version</label>
+                <input data-field="apiVersion" type="text" value="${cfg.apiVersion || ''}" placeholder="2024-08-01-preview"/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col right">
+          <div class="model-section">
+            <div class="model-grid wide">
+              <div>
+                <label>Max tokens</label>
+                <input data-field="maxTokens" type="number" value="${cfg.maxTokens ?? 300}"/>
+              </div>
+              <div>
+                <label>Timeout (ms)</label>
+                <input data-field="timeoutMs" type="number" value="${cfg.timeoutMs ?? 60000}"/>
+              </div>
+              <div class="full">
+                <label>Extra headers (JSON)</label>
+                <textarea data-field="extraHeaders" rows="3" placeholder='{"X-Org":"..."}'>${cfg.extraHeaders ? JSON.stringify(cfg.extraHeaders) : ''}</textarea>
+              </div>
+            </div>
+            <div class="row specifics-row">
+              <div class="btn-group" role="group" aria-label="Endpoint type">
+                <button type="button" class="btn endpoint-btn ${cfg.endpointType==='chat' ? 'active':''}" data-endpoint="chat" aria-pressed="${cfg.endpointType==='chat'}">Chat</button>
+                <button type="button" class="btn endpoint-btn ${cfg.endpointType==='responses' ? 'active':''}" data-endpoint="responses" aria-pressed="${cfg.endpointType==='responses'}">Responses</button>
+              </div>
+              <div class="inline-field endpoint-field" data-endpoint="chat" style="display:${cfg.endpointType==='chat' ? 'flex':'none'}">
+                <label>Temperature</label>
+                <input data-field="temperature" type="number" value="${cfg.temperature ?? 0}" step="0.1"/>
+              </div>
+              <div class="inline-field endpoint-field" data-endpoint="responses" style="display:${cfg.endpointType==='responses' ? 'flex':'none'}">
+                <label>Reasoning</label>
+                <select data-field="reasoningEffort">
+                  <option value="" ${!cfg.reasoningEffort ? 'selected' : ''}>(default)</option>
+                  <option value="low" ${cfg.reasoningEffort==='low'?'selected':''}>low</option>
+                  <option value="medium" ${cfg.reasoningEffort==='medium'?'selected':''}>medium</option>
+                  <option value="high" ${cfg.reasoningEffort==='high'?'selected':''}>high</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="model-grid">
-        <div>
-          <label>Color (hex)</label>
-          <input data-field="color" type="text" value="${cfg.color}"/>
-        </div>
-        <div>
-          <label>Endpoint Type</label>
-          <select data-field="endpointType">
-            <option value="chat" ${cfg.endpointType==='chat'?'selected':''}>chat</option>
-            <option value="responses" ${cfg.endpointType==='responses'?'selected':''}>responses</option>
-          </select>
-        </div>
-        <div>
-          <label>Base URL</label>
-          <input data-field="baseURL" type="text" value="${cfg.baseURL}" placeholder="https://api.example.com/v1"/>
-        </div>
-        <div>
-          <label>API Version</label>
-          <input data-field="apiVersion" type="text" value="${cfg.apiVersion || ''}" placeholder="2024-08-01-preview"/>
-        </div>
-        <div>
-          <label>Reasoning Effort (Responses)</label>
-          <select data-field="reasoningEffort">
-            <option value="" ${!cfg.reasoningEffort ? 'selected' : ''}>(default)</option>
-            <option value="low" ${cfg.reasoningEffort==='low'?'selected':''}>low</option>
-            <option value="medium" ${cfg.reasoningEffort==='medium'?'selected':''}>medium</option>
-            <option value="high" ${cfg.reasoningEffort==='high'?'selected':''}>high</option>
-          </select>
-        </div>
-        <div>
-          <label>Model ID</label>
-          <input data-field="model" type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
-        </div>
-        <div>
-          <label>API Key</label>
-          <input data-field="apiKey" type="password" value="${cfg.apiKey || ''}" placeholder="sk-..."/>
-        </div>
-        <div>
-          <label>Temperature</label>
-          <input data-field="temperature" type="number" value="${cfg.temperature ?? 0}" step="0.1"/>
-        </div>
-        <div>
-          <label>Max tokens</label>
-          <input data-field="maxTokens" type="number" value="${cfg.maxTokens ?? 300}"/>
-        </div>
-        <div>
-          <label>Timeout (ms)</label>
-          <input data-field="timeoutMs" type="number" value="${cfg.timeoutMs ?? 60000}"/>
-        </div>
-      </div>
-      <div class="row">
-        <div style="flex:1">
-          <label>Extra headers (JSON)</label>
-          <textarea data-field="extraHeaders" rows="3" placeholder='{"X-Org":"..."}'>${cfg.extraHeaders ? JSON.stringify(cfg.extraHeaders) : ''}</textarea>
-        </div>
-      </div>
-      <div class="row">
-        <button class="btn" data-act="test">Test Connection</button>
-        <button class="btn danger" data-act="delete" title="Remove model">Delete</button>
-      </div>
-      <div class="row">
-        <div style="flex:1">
-          <label>Log</label>
-          <pre class="log-area" data-log>—</pre>
+
+      <div class="model-section">
+        <div class="row log-row">
+          <button class="btn sm" data-act="test">Test Connection</button>
+          <label style="margin:0 4px 0 6px;">Log</label>
+          <pre class="log-area" data-log style="flex:1;">—</pre>
+          <button class="btn danger sm" data-act="delete" title="Remove model">Delete Model</button>
         </div>
       </div>
     `;
 
-    const enabled = card.querySelector('.header input[type="checkbox"]');
+    const enabled = card.querySelector('.switch input[type="checkbox"]');
     const color = card.querySelector('input[data-field="color"]');
-    const endpointSelect = card.querySelector('select[data-field="endpointType"]');
+    // Endpoint type is controlled via buttons; track current selection
+    let currentEndpointType = cfg.endpointType || 'chat';
     const baseURL = card.querySelector('input[data-field="baseURL"]');
     const model = card.querySelector('input[data-field="model"]');
     const apiVersion = card.querySelector('input[data-field="apiVersion"]');
@@ -313,7 +322,7 @@ export class ModelTabs {
         ...cfg,
         enabled: enabled.checked,
         color: color.value,
-        endpointType: endpointSelect.value,
+        endpointType: currentEndpointType,
         baseURL: baseURL.value,
         apiVersion: apiVersion.value,
         reasoningEffort: reasoningEffort.value,
@@ -378,7 +387,27 @@ export class ModelTabs {
     // Auto-save on any change
     enabled.addEventListener('change', persist);
     color.addEventListener('input', persist);
-    endpointSelect.addEventListener('change', persist);
+    // Endpoint buttons toggle
+    const endpointBtns = Array.from(card.querySelectorAll('.endpoint-btn'));
+    const endpointPanels = Array.from(card.querySelectorAll('.endpoint-field'));
+    endpointBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.endpoint;
+        if (!val || val === currentEndpointType) return;
+        currentEndpointType = val;
+        // Update active states
+        endpointBtns.forEach(b => {
+          const active = b.dataset.endpoint === currentEndpointType;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-pressed', String(active));
+        });
+        // Toggle endpoint-specific inline fields
+        endpointPanels.forEach(p => {
+          p.style.display = (p.dataset.endpoint === currentEndpointType) ? 'flex' : 'none';
+        });
+        persist();
+      });
+    });
     baseURL.addEventListener('input', persist);
     model.addEventListener('input', persist);
     apiVersion.addEventListener('input', persist);

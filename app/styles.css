@@ -137,25 +137,65 @@ h2 { font-size:16px; margin:0; }
 
 /* Models tab */
 .model-card {
-  border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:10px; background:#141722;
+  border:0; border-radius:0; padding:4px 0 8px; margin-bottom:10px; background:transparent;
 }
 .model-card .header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .model-card .header .swatch { width:14px; height:14px; border-radius:4px; border:1px solid #000; }
 .model-card .header .title { font-weight:600; }
+.model-card .two-col { display:grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 16px; align-items:start; }
+.model-card .two-col .col { min-width: 0; overflow: hidden; }
+.model-card .model-section { border-top:0; padding-top:6px; margin-top:6px; }
+.model-card .model-section:first-of-type { border-top:none; padding-top:0; margin-top:0; }
+.model-card .section-title { display:none; }
 .model-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
-.model-grid.wide { grid-template-columns: repeat(2, 1fr); }
-.model-grid label { color:var(--muted); font-size:12px; }
-.model-grid input, .model-grid select, .model-grid textarea {
-  width:100%; padding:6px; border-radius:6px; border:1px solid var(--border);
-  background:#10121a; color:var(--text);
+/* Ultra‑compact, left‑aligned grid for settings */
+.model-grid.wide { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 14px; row-gap: 8px; justify-content: start; align-items: end; }
+.model-grid.wide > div { max-width: none; }
+.model-grid.wide > .full { grid-column: 1 / -1; }
+.model-grid.wide > .full input { width: min(100%, 980px); max-width: 100%; }
+.model-grid label { color:var(--muted); font-size:11.5px; margin-bottom: 2px; }
+.model-card .model-grid input, .model-card .model-grid select, .model-card .model-grid textarea {
+  width:auto; max-width: 100%; padding:4px 6px; border-radius:6px; border:1px solid var(--border);
+  background:#10121a; color:var(--text); font-size:13px;
 }
+.model-card input[data-field="model"] { width: 100%; max-width: 220px; }
+.model-card input[data-field="color"] { width: 100%; max-width: 110px; }
+.model-card input[data-field="apiKey"] { width: 100%; max-width: 320px; }
+.model-card input[data-field="apiVersion"] { width: 100%; max-width: 180px; }
+.model-card input[data-field="maxTokens"] { width: 100%; max-width: 120px; }
+.model-card input[data-field="timeoutMs"] { width: 100%; max-width: 140px; }
+.model-card select[data-field="reasoningEffort"] { width: 100%; max-width: 160px; }
+.model-card input[data-field="temperature"] { width: 100%; max-width: 100px; }
+.model-card textarea[data-field="extraHeaders"] { width: 320px; height: 56px; }
+.model-card input[data-field="baseURL"] { width: min(980px, 100%); }
+.model-card .model-grid .full textarea[data-field="extraHeaders"] { width: 100%; height: 72px; }
 .model-card .row { display:flex; gap:8px; margin-top:6px; }
 .model-card .row .btn { flex:0 0 auto; }
+/* Right-aligned row */
+.model-card .row.right { justify-content: flex-end; }
+/* Smaller buttons for dense layouts */
+.btn.sm { padding: 4px 8px; font-size: 12px; }
+
+/* Button group for endpoint type */
+.btn-group { display:inline-flex; gap:6px; }
+.btn-group .btn { border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+
+/* Specifics row: endpoint + inline parameter */
+.specifics-row { align-items: end !important; gap: 12px; }
+.inline-field { display:flex; flex-direction: column; gap: 2px; }
+.inline-field label { color: var(--muted); font-size: 11.5px; }
+.inline-field input, .inline-field select { width: auto; }
+
+/* Simple inline switch style */
+.switch { display:inline-flex; align-items:center; gap:8px; }
+.switch input[type="checkbox"] { accent-color: var(--accent); }
 
 .log-area {
   background:#0c0f16; border:1px solid var(--border); border-radius:6px; padding:8px; white-space:pre-wrap;
   max-height:160px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px;
 }
+/* Inline log + buttons row */
+.model-card .log-row { align-items: center; gap: 8px; }
 
 /* Color popover */
 .color-popover {
@@ -188,4 +228,18 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
 @media (max-width: 1080px) {
   .layout { grid-template-columns: 1fr; height:auto; }
   .preview .canvas-wrap { height: 60vh; }
+}
+
+@media (max-width: 900px) {
+  .model-grid.wide { grid-template-columns: repeat(2, auto); }
+  .model-grid.wide > div { max-width: none; }
+}
+
+@media (max-width: 640px) {
+  .model-grid.wide { grid-template-columns: 1fr; }
+}
+
+/* auto-fit handles wrap; keep single column on very narrow screens just in case */
+@media (max-width: 560px) {
+  .model-card .two-col { grid-template-columns: 1fr; }
 }
