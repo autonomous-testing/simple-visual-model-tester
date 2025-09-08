@@ -71,7 +71,15 @@ h2 { font-size:16px; margin:0; }
   padding:8px 10px; border-radius: 8px; cursor:pointer;
 }
 .btn:hover { filter: brightness(1.05); }
+.btn.active, .btn[aria-pressed="true"] {
+  background:#273248;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
 .btn.primary { background: var(--accent); color:#0a0f1a; border-color: transparent; }
+.btn.primary.active, .btn.primary[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px rgba(106,166,255,0.5);
+}
 .btn.danger { background: var(--danger); color:#1a0a0c; border-color: transparent; }
 .btn.ghost { background: transparent; }
 
@@ -79,7 +87,10 @@ h2 { font-size:16px; margin:0; }
 .history-table .table-wrap { max-height: 220px; }
 .history-table table { min-width: 0; }
 .history-table tr.clickable { cursor: pointer; }
-.history-table tr.selected { background: #1f2431; }
+.history-table tr.selected {
+  background: #2a3450;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .history-table .prompt-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .batch-status .progress {
@@ -113,7 +124,12 @@ h2 { font-size:16px; margin:0; }
   cursor:pointer; color: var(--text);
 }
 .tab-btn.right { margin-left: auto; }
-.tab-btn.active { background:#222632; }
+.tab-btn:hover { filter: brightness(1.08); }
+.tab-btn.active {
+  background:#273248;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
 .tab-btn .swatch { width:12px; height:12px; border-radius:3px; border:2px solid #000; display:inline-block; margin-right:6px; vertical-align:middle; cursor:pointer; }
 .tabs-body { padding: 10px; }
 .tab-pane { display:none; }
