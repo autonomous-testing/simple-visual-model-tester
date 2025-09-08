@@ -11,8 +11,10 @@ export class ApiClient {
     const t0 = performance.now();
     // Build a minimal payload appropriate for the endpoint type
     const body = (model.endpointType === 'responses')
-      ? { model: model.model, max_output_tokens: 1, input: [{ role: 'user', content: [{ type: 'text', text: 'ping' }] }] }
-      : { model: model.model, max_tokens: 1, messages: [{ role: 'user', content: [{ type: 'text', text: 'ping' }] }] };
+      // Responses API expects input_* types
+      ? { model: model.model, max_output_tokens: 1, input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }] }
+      // Chat API can accept either string or array. Use simple string for ping.
+      : { model: model.model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] };
     const res = await fetch(url, {
       method: 'POST',
       headers: this._headers(model),
@@ -39,16 +41,30 @@ export class ApiClient {
       max_tokens: (endpointType === 'responses') ? undefined : maxTokens
     });
 
+    // Some providers (notably via OpenRouter) have subtle differences in multimodal payloads.
+    // Normalize a few common variants for maximum compatibility.
+    const isOpenRouter = /openrouter\.ai/i.test(String(baseURL || ''));
+    const modelSlug = String(model || '').toLowerCase();
+    const isQwenVL = /qwen/.test(modelSlug) && /vl/.test(modelSlug);
+
+    // For Chat API (OpenAI-style), image_url can be either object {url} or string for some providers.
+    const imagePartChat = (isOpenRouter && isQwenVL)
+      ? { type: 'image_url', image_url: b64 }
+      : { type: 'image_url', image_url: { url: b64 } };
+
+    // For Responses API (new OpenAI Responses), types should be input_text / input_image
+    // and image_url is commonly a direct string.
+    const textPartResponses = { type: 'input_text', text: prompt };
+    const sysTextPartResponses = { type: 'input_text', text: sysPrompt };
+    const imagePartResponses = { type: 'input_image', image_url: b64 };
+
     let body;
     if (endpointType === 'responses') {
       body = {
         model, temperature, max_output_tokens: maxTokens,
         input: [
-          { role:'system', content:[{ type:'text', text: sysPrompt }]},
-          { role:'user', content:[
-            { type:'text', text: prompt },
-            { type:'image_url', image_url: { url: b64 } }
-          ]}
+          { role:'system', content:[ sysTextPartResponses ]},
+          { role:'user', content:[ textPartResponses, imagePartResponses ]}
         ],
         response_format: { type:'json_object' }
       };
@@ -57,10 +73,13 @@ export class ApiClient {
       body = {
         model, temperature, max_tokens: maxTokens,
         messages: [
-          { role:'system', content:[{ type:'text', text: sysPrompt }]},
+          // Some providers expect system as a plain string; use string for Qwen via OpenRouter.
+          isOpenRouter && isQwenVL
+            ? { role:'system', content: sysPrompt }
+            : { role:'system', content:[{ type:'text', text: sysPrompt }]},
           { role:'user', content:[
             { type:'text', text: prompt },
-            { type:'image_url', image_url: { url: b64 } }
+            imagePartChat
           ]}
         ],
         response_format: { type:'json_object' }
