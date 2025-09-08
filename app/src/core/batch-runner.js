@@ -43,12 +43,13 @@ export class BatchRunner {
       // Kick off parallel calls
       const sysTpl = this.storage?.getSystemPromptTemplate?.() || '';
       const promises = enabledModels.map(async m => {
-        let status = 'ok', latencyMs = null, rawText = '', parsed = null, errorMessage = undefined;
+        let status = 'ok', latencyMs = null, rawText = '', rawFull = undefined, parsed = null, errorMessage = undefined;
         const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
         try {
           const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH, sysTpl);
           latencyMs = res.latencyMs;
           rawText = res.rawText;
+          rawFull = res.rawFull;
           const p = parser.parse(rawText, imageW, imageH);
           if (!p.ok) { status = p.status; errorMessage = p.error; }
           parsed = p.value;
@@ -63,6 +64,7 @@ export class BatchRunner {
           status,
           latencyMs,
           rawText,
+          rawFull,
           parsed,
           errorMessage
         };

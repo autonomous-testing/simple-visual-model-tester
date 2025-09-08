@@ -184,6 +184,15 @@ export class ModelTabs {
           <input data-field="apiVersion" type="text" value="${cfg.apiVersion || ''}" placeholder="2024-08-01-preview"/>
         </div>
         <div>
+          <label>Reasoning Effort (Responses)</label>
+          <select data-field="reasoningEffort">
+            <option value="" ${!cfg.reasoningEffort ? 'selected' : ''}>(default)</option>
+            <option value="low" ${cfg.reasoningEffort==='low'?'selected':''}>low</option>
+            <option value="medium" ${cfg.reasoningEffort==='medium'?'selected':''}>medium</option>
+            <option value="high" ${cfg.reasoningEffort==='high'?'selected':''}>high</option>
+          </select>
+        </div>
+        <div>
           <label>Model ID</label>
           <input data-field="model" type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
         </div>
@@ -228,6 +237,7 @@ export class ModelTabs {
     const baseURL = card.querySelector('input[data-field="baseURL"]');
     const model = card.querySelector('input[data-field="model"]');
     const apiVersion = card.querySelector('input[data-field="apiVersion"]');
+    const reasoningEffort = card.querySelector('select[data-field="reasoningEffort"]');
     const key = card.querySelector('input[data-field="apiKey"]');
     const temp = card.querySelector('input[data-field="temperature"]');
     const maxTok = card.querySelector('input[data-field="maxTokens"]');
@@ -306,6 +316,7 @@ export class ModelTabs {
         endpointType: endpointSelect.value,
         baseURL: baseURL.value,
         apiVersion: apiVersion.value,
+        reasoningEffort: reasoningEffort.value,
         model: model.value,
         apiKey: key.value,
         temperature: Number(temp.value),
@@ -376,6 +387,7 @@ export class ModelTabs {
     maxTok.addEventListener('input', persist);
     timeout.addEventListener('input', persist);
     headersTa.addEventListener('input', persist);
+    reasoningEffort.addEventListener('change', persist);
 
     return card;
   }

@@ -114,7 +114,8 @@ export class ResultsTable {
       latencyMs: r.latencyMs ?? '',
       status: r.status,
       error: r.errorMessage || '',
-      rawTextShort: (r.rawText || '').slice(0, 200)
+      rawTextShort: (r.rawText || '').slice(0, 200),
+      rawTextFull: (r.rawFull || r.rawText || '')
     };
   }
 
@@ -133,7 +134,20 @@ export class ResultsTable {
       return;
     }
 
-    tbody.innerHTML = rows.map(r => `<tr>${cols.map(c => `<td>${String(r[c] ?? '')}</td>`).join('')}</tr>`).join('');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+    tbody.innerHTML = rows.map(r => {
+      return `<tr>${cols.map(c => {
+        if (c === 'rawTextShort') {
+          const short = String(r[c] ?? '');
+          const full = String(r.rawTextFull ?? '');
+          if (full && full.length > short.length) {
+            return `<td><details><summary>${esc(short)}… (${full.length} chars)</summary><pre style="white-space:pre-wrap;max-width:60vw;">${esc(full)}</pre></details></td>`;
+          }
+          return `<td>${esc(short)}</td>`;
+        }
+        return `<td>${esc(r[c])}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
   }
 
   async exportCsv() {
@@ -150,4 +164,3 @@ export class ResultsTable {
     URL.revokeObjectURL(url);
   }
 }
-

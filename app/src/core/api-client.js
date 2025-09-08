@@ -11,8 +11,8 @@ export class ApiClient {
     const t0 = performance.now();
     // Build a minimal payload appropriate for the endpoint type
     const body = (model.endpointType === 'responses')
-      // Responses API expects input_* types
-      ? { model: model.model, max_output_tokens: 1, input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }] }
+      // Responses API expects input_* types; use top-level max_output_tokens (Azure-compatible)
+      ? { model: model.model, max_output_tokens: 16, input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }] }
       // Chat API can accept either string or array. Use simple string for ping.
       : { model: model.model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] };
     const res = await fetch(url, {
@@ -24,7 +24,7 @@ export class ApiClient {
     return { ok: res.ok, status: res.status, timeMs };
   }
 
-  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000, apiVersion }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
+  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000, apiVersion, reasoningEffort }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
     const url = this._endpointUrl({ baseURL, endpointType, apiVersion });
     const headers = this._headers({ apiKey, extraHeaders, baseURL });
     const b64 = await blobToDataURL(imageBlob);
@@ -61,13 +61,16 @@ export class ApiClient {
     let body;
     if (endpointType === 'responses') {
       body = {
-        model, temperature, max_output_tokens: maxTokens,
+        model,
         input: [
           { role:'system', content:[ sysTextPartResponses ]},
           { role:'user', content:[ textPartResponses, imagePartResponses ]}
         ],
-        // Responses API: JSON mode via text.format object (e.g., { type: 'json_object' })
-        text: { format: { type: 'json_object' } }
+        // JSON-only response formatting
+        text: { format: { type: 'json_object' } },
+        // Azure GPT-5 compatible: use top-level max_output_tokens; omit temperature entirely
+        max_output_tokens: maxTokens,
+        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {})
       };
     } else {
       // chat
@@ -93,20 +96,50 @@ export class ApiClient {
     let status = 0;
     let rawText = '';
     try {
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         method: 'POST', headers, body: JSON.stringify(body),
         signal: controller.signal
       });
       status = res.status;
       // Try to parse JSON; if not JSON, fall back to text
-      const contentType = res.headers.get('content-type') || '';
+      let contentType = res.headers.get('content-type') || '';
+      let j;
       if (contentType.includes('application/json')) {
-        const j = await res.json();
+        j = await res.json();
         rawText = this._extractTextFromResponse(j, endpointType);
+        var rawFull = JSON.stringify(j);
       } else {
         rawText = await res.text();
       }
       clearTimeout(to);
+      // Auto-retry for Responses when stopped by max_output_tokens
+      if (endpointType === 'responses' && j && j.status === 'incomplete' && j.incomplete_details?.reason === 'max_output_tokens') {
+        const increased = Math.min(Math.max(Number(maxTokens) || 300, 300) * 2, 4096);
+        const retryBody = {
+          model,
+          input: [
+            { role:'system', content:[ sysTextPartResponses ]},
+            { role:'user', content:[ textPartResponses, imagePartResponses ]}
+          ],
+          text: { format: { type: 'json_object' } },
+          max_output_tokens: increased,
+          ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {})
+        };
+        const controller2 = new AbortController();
+        const to2 = setTimeout(() => controller2.abort('timeout'), timeoutMs);
+        res = await fetch(url, { method:'POST', headers, body: JSON.stringify(retryBody), signal: controller2.signal });
+        status = res.status;
+        contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          j = await res.json();
+          rawText = this._extractTextFromResponse(j, endpointType);
+          rawFull = JSON.stringify(j);
+        } else {
+          rawText = await res.text();
+          rawFull = undefined;
+        }
+        clearTimeout(to2);
+      }
       const latency = Math.round(performance.now() - t0);
       const sanitizedReq = {
         url,
@@ -119,7 +152,7 @@ export class ApiClient {
         timing: { startedAtIso: new Date(t0 + performance.timeOrigin).toISOString(), finishedAtIso: new Date().toISOString(), latencyMs: latency }
       };
       onLogSanitized?.(log);
-      return { status, rawText, latencyMs: latency };
+      return { status, rawText, rawFull, latencyMs: latency };
     } catch (e) {
       clearTimeout(to);
       const latency = Math.round(performance.now() - t0);
