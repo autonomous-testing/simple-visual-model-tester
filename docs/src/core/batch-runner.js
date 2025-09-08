@@ -44,7 +44,7 @@ export class BatchRunner {
         let status = 'ok', latencyMs = null, rawText = '', parsed = null, errorMessage = undefined;
         const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
         try {
-          const res = await client.callModel(m, imageBlob, prompt, onLog);
+          const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH);
           latencyMs = res.latencyMs;
           rawText = res.rawText;
           const p = parser.parse(rawText, imageW, imageH);

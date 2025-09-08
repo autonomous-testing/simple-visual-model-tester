@@ -22,29 +22,43 @@ export class ApiClient {
     return { ok: res.ok, status: res.status, timeMs };
   }
 
-  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000 }, imageBlob, prompt, onLogSanitized) {
+  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000 }, imageBlob, prompt, onLogSanitized, imageW, imageH) {
     const url = this._endpointUrl({ baseURL, endpointType });
     const headers = this._headers({ apiKey, extraHeaders });
     const b64 = await blobToDataURL(imageBlob);
 
-    const sysPrompt = `You are a strictly JSON-only assistant. Output ONLY valid JSON with no extra text.
+    const sysPrompt = `You are a strictly JSON-only assistant. Output ONLY a single valid JSON object — no prose, no code fences, no keys missing, no trailing commas.
 Task: Given one image and an instruction, locate the UI element and return coordinates.
 
-Schema (must match exactly):
+Return exactly this schema (keys and types must match):
 {
   "coordinate_system": "pixel",
   "origin": "top-left",
-  "image_size": { "width": int, "height": int },
-  "primary": { "type": "point" | "bbox", "...numbers as defined..." },
-  "others": [ Detection objects ... ],
-  "notes": string (optional)
+  "image_size": { "width": ${Number.isFinite(imageW) ? imageW : 'WIDTH_INT'}, "height": ${Number.isFinite(imageH) ? imageH : 'HEIGHT_INT'} },
+  "primary":
+    { "type": "point", "x": INT, "y": INT, "confidence": NUMBER_0_TO_1 }
+    OR
+    { "type": "bbox",  "x": INT, "y": INT, "width": INT, "height": INT, "confidence": NUMBER_0_TO_1 },
+  "others": [
+    zero or more detection objects with the same shape as "primary"
+  ],
+  "notes": STRING (optional)
 }
 
-Rules:
-- If unsure, still return your best guess with a confidence in [0.0, 1.0].
-- Coordinates must be within image bounds.
-- If both point and bbox are reasonable, prefer "point" as primary.
-- Do not include any commentary or code fences; return JSON only.`;
+Hard rules:
+- Output JSON only. No markdown, no explanations. The first character must be '{' and the last must be '}'.
+- Use integer pixels for coordinates; confidence is a float in [0.0, 1.0].
+- Coordinates must be within the image bounds: width=${Number.isFinite(imageW) ? imageW : 'W'}, height=${Number.isFinite(imageH) ? imageH : 'H'}.
+- Always include all required top-level keys: coordinate_system, origin, image_size, primary, others.
+- If uncertain, still return your best guess with a reasonable confidence.
+- Prefer a "point" primary when both point and bbox are reasonable.
+- If you cannot find anything, set primary to a point guess near the most likely area with low confidence (e.g., 0.1) and others to [].
+
+Good example (point):
+{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${Number.isFinite(imageW) ? imageW : 1280},"height":${Number.isFinite(imageH) ? imageH : 720}},"primary":{"type":"point","x":214,"y":358,"confidence":0.83},"others":[]}
+
+Good example (bbox):
+{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${Number.isFinite(imageW) ? imageW : 1280},"height":${Number.isFinite(imageH) ? imageH : 720}},"primary":{"type":"bbox","x":180,"y":300,"width":120,"height":80,"confidence":0.78},"others":[]}`;
 
     let body;
     if (endpointType === 'responses') {
