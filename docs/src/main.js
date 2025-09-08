@@ -28,11 +28,12 @@ const batchProgressBar = document.getElementById('batchProgressBar');
 const modelsTabsHeader = document.getElementById('models-tabs-header');
 const modelsTabsBody = document.getElementById('models-tabs-body');
 
-// Preview panel tabs (Preview / Results)
+// Preview panel tabs (Preview / Results / Prompt Template)
 const previewTabButtons = Array.from(document.querySelectorAll('.panel.preview .tab-btn'));
 const previewPanes = {
   preview: document.getElementById('preview-pane'),
   results: document.getElementById('results-pane'),
+  prompt: document.getElementById('prompt-pane'),
 };
 previewTabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -69,9 +70,41 @@ promptEl.value = storage.getLastPrompt() || '';
 modelTabs.render();
 resultsTable.renderScopeBar();
 historyTable.refresh();
+renderPromptTemplateTab();
 
 function setBadge(text) {
   badge.textContent = text;
+}
+
+// Prompt Template editor
+function renderPromptTemplateTab() {
+  const root = previewPanes.prompt;
+  if (!root) return;
+  root.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'section-block';
+  wrap.innerHTML = `
+    <h3 style="margin-top:0;">System Prompt Template</h3>
+    <p style="color:var(--muted); margin:6px 0 8px 0;">Use placeholders like <code>${'${image_width}'}</code>, <code>${'${image_height}'}</code>, <code>${'${user_prompt}'}</code>, <code>${'${coordinate_system}'}</code>, <code>${'${origin}'}</code>. Changes auto‑save.</p>
+    <textarea id="sysPromptTemplate" rows="14" style="width:100%; resize:vertical;" aria-label="System prompt template"></textarea>
+    <div class="row" style="margin-top:8px; display:flex; gap:8px;">
+      <button class="btn" id="resetSysPromptBtn">Reset to Default</button>
+    </div>
+  `;
+  root.appendChild(wrap);
+  const ta = wrap.querySelector('#sysPromptTemplate');
+  const resetBtn = wrap.querySelector('#resetSysPromptBtn');
+  ta.value = storage.getSystemPromptTemplate();
+  ta.addEventListener('input', () => {
+    storage.setSystemPromptTemplate(ta.value);
+    setBadge('Working: Unsaved');
+  });
+  resetBtn.addEventListener('click', () => {
+    if (!confirm('Reset system prompt template to default?')) return;
+    storage.resetSystemPromptTemplate();
+    ta.value = storage.getSystemPromptTemplate();
+    setBadge('Working: Unsaved');
+  });
 }
 
 // Inputs wiring
@@ -114,7 +147,7 @@ runBtn.addEventListener('click', async () => {
   }
 
   storage.setLastPrompt(prompt);
-  const batchRunner = new BatchRunner(historyStore, overlay, resultsTable, modelTabs);
+  const batchRunner = new BatchRunner(historyStore, overlay, resultsTable, modelTabs, storage);
   cancelBtn.hidden = false;
 
   const onProgress = ({ done, total, runLabel, batchId, runId, runMeta }) => {

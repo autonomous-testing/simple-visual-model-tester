@@ -240,6 +240,40 @@ var App = (() => {
     }
     return c;
   }
+  function defaultSystemPromptTemplate() {
+    return `You are a strictly JSON-only assistant. Output ONLY a single valid JSON object \u2014 no prose, no code fences, no keys missing, no trailing commas.
+Task: Given one image and an instruction, locate the UI element and return coordinates.
+
+Return exactly this schema (keys and types must match):
+{
+  "coordinate_system": "pixel",
+  "origin": "top-left",
+  "image_size": { "width": ${"${image_width}"}, "height": ${"${image_height}"} },
+  "primary":
+    { "type": "point", "x": INT, "y": INT, "confidence": NUMBER_0_TO_1 }
+    OR
+    { "type": "bbox",  "x": INT, "y": INT, "width": INT, "height": INT, "confidence": NUMBER_0_TO_1 },
+  "others": [
+    zero or more detection objects with the same shape as "primary"
+  ],
+  "notes": STRING (optional)
+}
+
+Hard rules:
+- Output JSON only. No markdown, no explanations. The first character must be '{' and the last must be '}'.
+- Use integer pixels for coordinates; confidence is a float in [0.0, 1.0].
+- Coordinates must be within the image bounds: width=${"${image_width}"}, height=${"${image_height}"}.
+- Always include all required top-level keys: coordinate_system, origin, image_size, primary, others.
+- If uncertain, still return your best guess with a reasonable confidence.
+- Prefer a "point" primary when both point and bbox are reasonable.
+- If you cannot find anything, set primary to a point guess near the most likely area with low confidence (e.g., 0.1) and others to [].
+
+Good example (point):
+{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${"${image_width}"},"height":${"${image_height}"}},"primary":{"type":"point","x":214,"y":358,"confidence":0.83},"others":[]}
+
+Good example (bbox):
+{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${"${image_width}"},"height":${"${image_height}"}},"primary":{"type":"bbox","x":180,"y":300,"width":120,"height":80,"confidence":0.78},"others":[]}`;
+  }
   function defaultModels() {
     return [
       {
@@ -270,13 +304,14 @@ var App = (() => {
       }
     ];
   }
-  var COLOR_PALETTE, LS_MODELS, LS_LAST_PROMPT, Storage;
+  var COLOR_PALETTE, LS_MODELS, LS_LAST_PROMPT, LS_SYS_PROMPT_TPL, Storage;
   var init_storage = __esm({
     "docs/src/core/storage.js"() {
       init_utils();
       COLOR_PALETTE = ["#ff7a7a", "#7ad1ff", "#c38bff", "#3ecf8e", "#ff5f6a", "#6aa6ff", "#f5c542", "#9b59b6", "#f0932b", "#e056fd", "#badc58"];
       LS_MODELS = "ui-detective:model-configs";
       LS_LAST_PROMPT = "ui-detective:last-prompt";
+      LS_SYS_PROMPT_TPL = "ui-detective:sys-prompt-template";
       Storage = class {
         getModelConfigs() {
           const s = localStorage.getItem(LS_MODELS);
@@ -330,6 +365,18 @@ var App = (() => {
         setLastPrompt(s) {
           localStorage.setItem(LS_LAST_PROMPT, s);
         }
+        // System prompt template
+        getSystemPromptTemplate() {
+          const s = localStorage.getItem(LS_SYS_PROMPT_TPL);
+          if (!s) return defaultSystemPromptTemplate();
+          return s;
+        }
+        setSystemPromptTemplate(t) {
+          localStorage.setItem(LS_SYS_PROMPT_TPL, String(t ?? ""));
+        }
+        resetSystemPromptTemplate() {
+          localStorage.removeItem(LS_SYS_PROMPT_TPL);
+        }
       };
     }
   });
@@ -352,42 +399,21 @@ var App = (() => {
           const timeMs = Math.round(performance.now() - t0);
           return { ok: res.ok, status: res.status, timeMs };
         }
-        async callModel({ model, baseURL, apiKey, endpointType, temperature = 0, maxTokens = 300, extraHeaders, timeoutMs = 6e4 }, imageBlob, prompt, onLogSanitized, imageW, imageH) {
+        async callModel({ model, baseURL, apiKey, endpointType, temperature = 0, maxTokens = 300, extraHeaders, timeoutMs = 6e4 }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
           const url = this._endpointUrl({ baseURL, endpointType });
           const headers = this._headers({ apiKey, extraHeaders });
           const b64 = await blobToDataURL(imageBlob);
-          const sysPrompt = `You are a strictly JSON-only assistant. Output ONLY a single valid JSON object \u2014 no prose, no code fences, no keys missing, no trailing commas.
-Task: Given one image and an instruction, locate the UI element and return coordinates.
-
-Return exactly this schema (keys and types must match):
-{
-  "coordinate_system": "pixel",
-  "origin": "top-left",
-  "image_size": { "width": ${Number.isFinite(imageW) ? imageW : "WIDTH_INT"}, "height": ${Number.isFinite(imageH) ? imageH : "HEIGHT_INT"} },
-  "primary":
-    { "type": "point", "x": INT, "y": INT, "confidence": NUMBER_0_TO_1 }
-    OR
-    { "type": "bbox",  "x": INT, "y": INT, "width": INT, "height": INT, "confidence": NUMBER_0_TO_1 },
-  "others": [
-    zero or more detection objects with the same shape as "primary"
-  ],
-  "notes": STRING (optional)
-}
-
-Hard rules:
-- Output JSON only. No markdown, no explanations. The first character must be '{' and the last must be '}'.
-- Use integer pixels for coordinates; confidence is a float in [0.0, 1.0].
-- Coordinates must be within the image bounds: width=${Number.isFinite(imageW) ? imageW : "W"}, height=${Number.isFinite(imageH) ? imageH : "H"}.
-- Always include all required top-level keys: coordinate_system, origin, image_size, primary, others.
-- If uncertain, still return your best guess with a reasonable confidence.
-- Prefer a "point" primary when both point and bbox are reasonable.
-- If you cannot find anything, set primary to a point guess near the most likely area with low confidence (e.g., 0.1) and others to [].
-
-Good example (point):
-{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${Number.isFinite(imageW) ? imageW : 1280},"height":${Number.isFinite(imageH) ? imageH : 720}},"primary":{"type":"point","x":214,"y":358,"confidence":0.83},"others":[]}
-
-Good example (bbox):
-{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${Number.isFinite(imageW) ? imageW : 1280},"height":${Number.isFinite(imageH) ? imageH : 720}},"primary":{"type":"bbox","x":180,"y":300,"width":120,"height":80,"confidence":0.78},"others":[]}`;
+          const sysPrompt = this._fillTemplate(systemPromptTemplate || "", {
+            image_width: Number.isFinite(imageW) ? imageW : "",
+            image_height: Number.isFinite(imageH) ? imageH : "",
+            coordinate_system: "pixel",
+            origin: "top-left",
+            user_prompt: prompt || "",
+            model_id: model,
+            endpoint_type: endpointType,
+            temperature,
+            max_tokens: endpointType === "responses" ? void 0 : maxTokens
+          });
           let body;
           if (endpointType === "responses") {
             body = {
@@ -473,6 +499,13 @@ Good example (bbox):
         _endpointUrl({ baseURL, endpointType }) {
           const base = baseURL.replace(/\/$/, "");
           return endpointType === "responses" ? `${base}/responses` : `${base}/chat/completions`;
+        }
+        _fillTemplate(template, data) {
+          if (!template || typeof template !== "string") return "";
+          return template.replace(/\$\{(\w+)\}/g, (m, k) => {
+            const v = data.hasOwnProperty(k) ? data[k] : void 0;
+            return v == null ? m : String(v);
+          });
         }
         _headers({ apiKey, extraHeaders }) {
           const base = {
@@ -1268,11 +1301,12 @@ Good example (bbox):
       init_api_client();
       init_parser();
       BatchRunner = class {
-        constructor(historyStore, overlay, resultsTable, modelTabs) {
+        constructor(historyStore, overlay, resultsTable, modelTabs, storage) {
           this.history = historyStore;
           this.overlay = overlay;
           this.resultsTable = resultsTable;
           this.modelTabs = modelTabs;
+          this.storage = storage;
           this.cancelRequested = false;
         }
         cancel() {
@@ -1299,11 +1333,12 @@ Good example (bbox):
             await this.history.addRunMeta(runMeta);
             await this.history.putRunData(runMeta.id, { id: runMeta.id, results: [], logs: {} });
             onRunStart?.({ batchId: batchMeta.id, runId: runMeta.id, runMeta });
+            const sysTpl = this.storage?.getSystemPromptTemplate?.() || "";
             const promises = enabledModels.map(async (m) => {
               let status = "ok", latencyMs = null, rawText = "", parsed = null, errorMessage = void 0;
               const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
               try {
-                const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH);
+                const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH, sysTpl);
                 latencyMs = res.latencyMs;
                 rawText = res.rawText;
                 const p = parser.parse(rawText, imageW, imageH);
@@ -1604,7 +1639,8 @@ Good example (bbox):
       var previewTabButtons = Array.from(document.querySelectorAll(".panel.preview .tab-btn"));
       var previewPanes = {
         preview: document.getElementById("preview-pane"),
-        results: document.getElementById("results-pane")
+        results: document.getElementById("results-pane"),
+        prompt: document.getElementById("prompt-pane")
       };
       previewTabButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1633,8 +1669,38 @@ Good example (bbox):
       modelTabs.render();
       resultsTable.renderScopeBar();
       historyTable.refresh();
+      renderPromptTemplateTab();
       function setBadge(text) {
         badge.textContent = text;
+      }
+      function renderPromptTemplateTab() {
+        const root = previewPanes.prompt;
+        if (!root) return;
+        root.innerHTML = "";
+        const wrap = document.createElement("div");
+        wrap.className = "section-block";
+        wrap.innerHTML = `
+    <h3 style="margin-top:0;">System Prompt Template</h3>
+    <p style="color:var(--muted); margin:6px 0 8px 0;">Use placeholders like <code>${"${image_width}"}</code>, <code>${"${image_height}"}</code>, <code>${"${user_prompt}"}</code>, <code>${"${coordinate_system}"}</code>, <code>${"${origin}"}</code>. Changes auto\u2011save.</p>
+    <textarea id="sysPromptTemplate" rows="14" style="width:100%; resize:vertical;" aria-label="System prompt template"></textarea>
+    <div class="row" style="margin-top:8px; display:flex; gap:8px;">
+      <button class="btn" id="resetSysPromptBtn">Reset to Default</button>
+    </div>
+  `;
+        root.appendChild(wrap);
+        const ta = wrap.querySelector("#sysPromptTemplate");
+        const resetBtn = wrap.querySelector("#resetSysPromptBtn");
+        ta.value = storage.getSystemPromptTemplate();
+        ta.addEventListener("input", () => {
+          storage.setSystemPromptTemplate(ta.value);
+          setBadge("Working: Unsaved");
+        });
+        resetBtn.addEventListener("click", () => {
+          if (!confirm("Reset system prompt template to default?")) return;
+          storage.resetSystemPromptTemplate();
+          ta.value = storage.getSystemPromptTemplate();
+          setBadge("Working: Unsaved");
+        });
       }
       fileInput.addEventListener("change", async () => {
         const file = fileInput.files && fileInput.files[0];
@@ -1669,7 +1735,7 @@ Good example (bbox):
           return;
         }
         storage.setLastPrompt(prompt);
-        const batchRunner = new BatchRunner(historyStore, overlay, resultsTable, modelTabs);
+        const batchRunner = new BatchRunner(historyStore, overlay, resultsTable, modelTabs, storage);
         cancelBtn.hidden = false;
         const onProgress = ({ done, total, runLabel, batchId, runId, runMeta }) => {
           showBatchStatus(done, total);

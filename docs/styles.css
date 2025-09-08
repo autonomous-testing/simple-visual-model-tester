@@ -112,6 +112,7 @@ h2 { font-size:16px; margin:0; }
   padding:8px 10px; background:#1a1d27; border:1px solid var(--border); border-radius:8px;
   cursor:pointer; color: var(--text);
 }
+.tab-btn.right { margin-left: auto; }
 .tab-btn.active { background:#222632; }
 .tab-btn .swatch { width:12px; height:12px; border-radius:3px; border:2px solid #000; display:inline-block; margin-right:6px; vertical-align:middle; cursor:pointer; }
 .tabs-body { padding: 10px; }

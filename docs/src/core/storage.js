@@ -16,6 +16,44 @@ function randomColor(exclude) {
 
 const LS_MODELS = 'ui-detective:model-configs';
 const LS_LAST_PROMPT = 'ui-detective:last-prompt';
+const LS_SYS_PROMPT_TPL = 'ui-detective:sys-prompt-template';
+
+function defaultSystemPromptTemplate() {
+  return (
+`You are a strictly JSON-only assistant. Output ONLY a single valid JSON object — no prose, no code fences, no keys missing, no trailing commas.
+Task: Given one image and an instruction, locate the UI element and return coordinates.
+
+Return exactly this schema (keys and types must match):
+{
+  "coordinate_system": "pixel",
+  "origin": "top-left",
+  "image_size": { "width": ${'${image_width}'}, "height": ${'${image_height}'} },
+  "primary":
+    { "type": "point", "x": INT, "y": INT, "confidence": NUMBER_0_TO_1 }
+    OR
+    { "type": "bbox",  "x": INT, "y": INT, "width": INT, "height": INT, "confidence": NUMBER_0_TO_1 },
+  "others": [
+    zero or more detection objects with the same shape as "primary"
+  ],
+  "notes": STRING (optional)
+}
+
+Hard rules:
+- Output JSON only. No markdown, no explanations. The first character must be '{' and the last must be '}'.
+- Use integer pixels for coordinates; confidence is a float in [0.0, 1.0].
+- Coordinates must be within the image bounds: width=${'${image_width}'}, height=${'${image_height}'}.
+- Always include all required top-level keys: coordinate_system, origin, image_size, primary, others.
+- If uncertain, still return your best guess with a reasonable confidence.
+- Prefer a "point" primary when both point and bbox are reasonable.
+- If you cannot find anything, set primary to a point guess near the most likely area with low confidence (e.g., 0.1) and others to [].
+
+Good example (point):
+{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${'${image_width}'},"height":${'${image_height}'}},"primary":{"type":"point","x":214,"y":358,"confidence":0.83},"others":[]}
+
+Good example (bbox):
+{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${'${image_width}'},"height":${'${image_height}'}},"primary":{"type":"bbox","x":180,"y":300,"width":120,"height":80,"confidence":0.78},"others":[]}`
+  );
+}
 
 function defaultModels() {
   return [
@@ -95,4 +133,17 @@ export class Storage {
 
   getLastPrompt() { return localStorage.getItem(LS_LAST_PROMPT) || ''; }
   setLastPrompt(s) { localStorage.setItem(LS_LAST_PROMPT, s); }
+
+  // System prompt template
+  getSystemPromptTemplate() {
+    const s = localStorage.getItem(LS_SYS_PROMPT_TPL);
+    if (!s) return defaultSystemPromptTemplate();
+    return s;
+  }
+  setSystemPromptTemplate(t) {
+    localStorage.setItem(LS_SYS_PROMPT_TPL, String(t ?? ''));
+  }
+  resetSystemPromptTemplate() {
+    localStorage.removeItem(LS_SYS_PROMPT_TPL);
+  }
 }

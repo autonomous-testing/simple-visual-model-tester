@@ -2,11 +2,12 @@ import { ApiClient } from './api-client.js';
 import { Parser } from './parser.js';
 
 export class BatchRunner {
-  constructor(historyStore, overlay, resultsTable, modelTabs) {
+  constructor(historyStore, overlay, resultsTable, modelTabs, storage) {
     this.history = historyStore;
     this.overlay = overlay;
     this.resultsTable = resultsTable;
     this.modelTabs = modelTabs;
+    this.storage = storage;
     this.cancelRequested = false;
   }
 
@@ -40,11 +41,12 @@ export class BatchRunner {
       onRunStart?.({ batchId: batchMeta.id, runId: runMeta.id, runMeta });
 
       // Kick off parallel calls
+      const sysTpl = this.storage?.getSystemPromptTemplate?.() || '';
       const promises = enabledModels.map(async m => {
         let status = 'ok', latencyMs = null, rawText = '', parsed = null, errorMessage = undefined;
         const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
         try {
-          const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH);
+          const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH, sysTpl);
           latencyMs = res.latencyMs;
           rawText = res.rawText;
           const p = parser.parse(rawText, imageW, imageH);

@@ -22,43 +22,22 @@ export class ApiClient {
     return { ok: res.ok, status: res.status, timeMs };
   }
 
-  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000 }, imageBlob, prompt, onLogSanitized, imageW, imageH) {
+  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000 }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
     const url = this._endpointUrl({ baseURL, endpointType });
     const headers = this._headers({ apiKey, extraHeaders });
     const b64 = await blobToDataURL(imageBlob);
 
-    const sysPrompt = `You are a strictly JSON-only assistant. Output ONLY a single valid JSON object — no prose, no code fences, no keys missing, no trailing commas.
-Task: Given one image and an instruction, locate the UI element and return coordinates.
-
-Return exactly this schema (keys and types must match):
-{
-  "coordinate_system": "pixel",
-  "origin": "top-left",
-  "image_size": { "width": ${Number.isFinite(imageW) ? imageW : 'WIDTH_INT'}, "height": ${Number.isFinite(imageH) ? imageH : 'HEIGHT_INT'} },
-  "primary":
-    { "type": "point", "x": INT, "y": INT, "confidence": NUMBER_0_TO_1 }
-    OR
-    { "type": "bbox",  "x": INT, "y": INT, "width": INT, "height": INT, "confidence": NUMBER_0_TO_1 },
-  "others": [
-    zero or more detection objects with the same shape as "primary"
-  ],
-  "notes": STRING (optional)
-}
-
-Hard rules:
-- Output JSON only. No markdown, no explanations. The first character must be '{' and the last must be '}'.
-- Use integer pixels for coordinates; confidence is a float in [0.0, 1.0].
-- Coordinates must be within the image bounds: width=${Number.isFinite(imageW) ? imageW : 'W'}, height=${Number.isFinite(imageH) ? imageH : 'H'}.
-- Always include all required top-level keys: coordinate_system, origin, image_size, primary, others.
-- If uncertain, still return your best guess with a reasonable confidence.
-- Prefer a "point" primary when both point and bbox are reasonable.
-- If you cannot find anything, set primary to a point guess near the most likely area with low confidence (e.g., 0.1) and others to [].
-
-Good example (point):
-{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${Number.isFinite(imageW) ? imageW : 1280},"height":${Number.isFinite(imageH) ? imageH : 720}},"primary":{"type":"point","x":214,"y":358,"confidence":0.83},"others":[]}
-
-Good example (bbox):
-{"coordinate_system":"pixel","origin":"top-left","image_size":{"width":${Number.isFinite(imageW) ? imageW : 1280},"height":${Number.isFinite(imageH) ? imageH : 720}},"primary":{"type":"bbox","x":180,"y":300,"width":120,"height":80,"confidence":0.78},"others":[]}`;
+    const sysPrompt = this._fillTemplate(systemPromptTemplate || '', {
+      image_width: Number.isFinite(imageW) ? imageW : '',
+      image_height: Number.isFinite(imageH) ? imageH : '',
+      coordinate_system: 'pixel',
+      origin: 'top-left',
+      user_prompt: prompt || '',
+      model_id: model,
+      endpoint_type: endpointType,
+      temperature,
+      max_tokens: (endpointType === 'responses') ? undefined : maxTokens
+    });
 
     let body;
     if (endpointType === 'responses') {
@@ -143,6 +122,13 @@ Good example (bbox):
   _endpointUrl({ baseURL, endpointType }) {
     const base = baseURL.replace(/\/$/, '');
     return endpointType === 'responses' ? `${base}/responses` : `${base}/chat/completions`;
+  }
+  _fillTemplate(template, data) {
+    if (!template || typeof template !== 'string') return '';
+    return template.replace(/\$\{(\w+)\}/g, (m, k) => {
+      const v = data.hasOwnProperty(k) ? data[k] : undefined;
+      return v == null ? m : String(v);
+    });
   }
   _headers({ apiKey, extraHeaders }) {
     const base = {
