@@ -68,9 +68,18 @@ export function buildRequestBody({ endpointType, baseURL, model, temperature, ma
     // Thresholds may be provided via extra headers or the model string; however, the UI stores
     // them on the model config as dinoBoxThreshold / dinoTextThreshold and ApiClient injects them
     // into this builder by packing them into the "model" field in a simple way, or via extraHeaders.
+    const p = prompt || '';
     const payload = {
       image: imageB64,
-      prompt: prompt || '',
+      image_base64: imageB64, // some servers prefer this key
+      prompt: p,
+      // Prompt synonyms to be robust across GroundingDINO servers
+      text: p,
+      caption: p,
+      text_prompt: p,
+      query: p,
+      phrases: [p],
+      classes: [p]
     };
     // Allow callers to pass thresholds using a simple convention on model string, e.g. "GroundingDINO:0.35:0.25"
     // but prefer explicit fields if present via ctx.temperature/maxTokens abuse is not great. ApiClient will pass

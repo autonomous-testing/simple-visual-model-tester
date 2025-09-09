@@ -78,15 +78,24 @@ export class ApiClient {
       let res;
       if (endpointType === 'groundingdino') {
         // For GroundingDINO servers that expect multipart/form-data
-        // Build FormData: file, prompt, thresholds
+        // Build FormData: file, prompt, thresholds. Include common synonyms to maximize compatibility.
         const fd = new FormData();
         const mime = imageBlob?.type || 'image/png';
         const ext = mime.includes('jpeg') ? 'jpg' : (mime.split('/')[1] || 'png');
         const fname = `image.${ext}`;
-        // Append as file field named 'file'
-        // Append Blob with filename; let browser set proper content-type per part
+        const p = String(prompt ?? '');
+        // Append as file field named 'file' (common), and also 'image' to support other servers.
         fd.append('file', imageBlob, fname);
-        fd.append('prompt', String(prompt || ''));
+        try { fd.append('image', imageBlob, fname); } catch {}
+        // Prompt field synonyms used by various GroundingDINO servers
+        fd.append('prompt', p);
+        try { fd.append('text', p); } catch {}
+        try { fd.append('caption', p); } catch {}
+        try { fd.append('text_prompt', p); } catch {}
+        try { fd.append('query', p); } catch {}
+        // Some servers accept an array; sending a string is generally ignored by others
+        try { fd.append('phrases', p); } catch {}
+        try { fd.append('classes', p); } catch {}
         if (dinoBoxThreshold != null) fd.append('box_threshold', String(dinoBoxThreshold));
         if (dinoTextThreshold != null) fd.append('text_threshold', String(dinoTextThreshold));
         // Remove JSON content-type so browser sets multipart boundary
@@ -311,11 +320,19 @@ export class ApiClient {
           for (const item of arr) {
             const v = item?.value || {};
             if (item?.type === 'rectanglelabels' && v) {
-              // Assume normalized [0..1] floats for coordinates; convert to pixels.
-              const bx = Math.round(Number(v.x || 0) * w);
-              const by = Math.round(Number(v.y || 0) * h);
-              const bw = Math.round(Number(v.width || 0) * w);
-              const bh = Math.round(Number(v.height || 0) * h);
+              // Some servers return normalized [0..1]; others use percents [0..100].
+              // Detect heuristically: if any value > 1, treat as percent.
+              const vx = Number(v.x || 0);
+              const vy = Number(v.y || 0);
+              const vw = Number(v.width || 0);
+              const vh = Number(v.height || 0);
+              const usePercent = [vx, vy, vw, vh].some(val => Math.abs(val) > 1);
+              const sx = usePercent ? 0.01 * w : w;
+              const sy = usePercent ? 0.01 * h : h;
+              const bx = Math.round(vx * sx);
+              const by = Math.round(vy * sy);
+              const bw = Math.round(vw * sx);
+              const bh = Math.round(vh * sy);
               const conf = Number(v.score != null ? v.score : (group?.score ?? 0));
               // Some responses might provide width/height=0 (point-like). Filter non-positive boxes later.
               boxes.push({ x: bx, y: by, width: bw, height: bh, confidence: Math.max(0, Math.min(1, conf || 0)) });
@@ -334,6 +351,24 @@ export class ApiClient {
             height: Math.max(0, Math.round(d.height || 0)),
             confidence: Math.max(0, Math.min(1, Number(d.confidence || 0)))
           });
+        }
+      }
+
+      // Shape C (typical GroundingDINO raw): { boxes: [[x1,y1,x2,y2], ...], scores:[], labels:[] } normalized to [0..1]
+      if (Array.isArray(serverResponse.boxes)) {
+        const boxesArr = serverResponse.boxes;
+        const scores = Array.isArray(serverResponse.scores) ? serverResponse.scores : [];
+        for (let i = 0; i < boxesArr.length; i++) {
+          const b = boxesArr[i] || [];
+          const x1 = Number(b[0] || 0), y1 = Number(b[1] || 0), x2 = Number(b[2] || 0), y2 = Number(b[3] || 0);
+          const usePercent = [x1, y1, x2, y2].some(val => Math.abs(val) > 1);
+          const sx = usePercent ? 0.01 * w : w;
+          const sy = usePercent ? 0.01 * h : h;
+          const px1 = Math.round(x1 * sx), py1 = Math.round(y1 * sy);
+          const px2 = Math.round(x2 * sx), py2 = Math.round(y2 * sy);
+          const bw = Math.max(0, px2 - px1), bh = Math.max(0, py2 - py1);
+          const conf = Math.max(0, Math.min(1, Number(scores[i] || 0)));
+          boxes.push({ x: px1, y: py1, width: bw, height: bh, confidence: conf });
         }
       }
 

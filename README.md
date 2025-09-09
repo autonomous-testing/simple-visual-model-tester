@@ -75,6 +75,12 @@ curl -i -X POST "https://dino.d2.wopee.io/predict" \
   -F "text_threshold=0.25"
 ```
 
+Best-practice tips for GroundingDINO prompts
+- Keep it short and specific: e.g., `"button"`, `"checkbox"`, `"search icon"`.
+- Use lowercase; for multiple classes, separate with a dot: `"button . icon . logo ."`.
+- Tune thresholds: start with Box=0.35, Text=0.25 and adjust if missing/over-detections occur.
+- Compatibility: the client now sends common prompt field synonyms (`prompt`, `text`, `caption`, `text_prompt`, `query`, plus `phrases`/`classes`) and also accepts pixel or normalized/percent coordinates in responses.
+
 ## Browser Support
 
 - Designed for evergreen browsers (ES modules). Uses `createImageBitmap({ imageOrientation: 'from-image' })` to respect EXIF rotation when supported, with a safe fallback.
