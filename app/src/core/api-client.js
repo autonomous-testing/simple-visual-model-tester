@@ -24,7 +24,7 @@ export class ApiClient {
     return { ok: res.ok, status: res.status, timeMs };
   }
 
-  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=300, extraHeaders, timeoutMs=60000, apiVersion, reasoningEffort }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
+  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=2048, extraHeaders, timeoutMs=60000, apiVersion, reasoningEffort }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
     const url = this._endpointUrl({ baseURL, endpointType, apiVersion });
     const headers = this._headers({ apiKey, extraHeaders, baseURL });
     const b64 = await blobToDataURL(imageBlob);
@@ -140,6 +140,29 @@ export class ApiClient {
         }
         clearTimeout(to2);
       }
+      // Auto-retry for Chat when finish_reason === 'length'
+      if (endpointType !== 'responses' && j && Array.isArray(j.choices) && j.choices[0]?.finish_reason === 'length') {
+        const increased = Math.min(Math.max(Number(maxTokens) || 300, 300) * 2, 4096);
+        const retryBody = {
+          ...body,
+          max_tokens: increased
+        };
+        const controller2 = new AbortController();
+        const to2 = setTimeout(() => controller2.abort('timeout'), timeoutMs);
+        const res2 = await fetch(url, { method: 'POST', headers, body: JSON.stringify(retryBody), signal: controller2.signal });
+        status = res2.status;
+        const contentType2 = res2.headers.get('content-type') || '';
+        if (contentType2.includes('application/json')) {
+          const j2 = await res2.json();
+          j = j2;
+          rawText = this._extractTextFromResponse(j2, endpointType);
+          rawFull = JSON.stringify(j2);
+        } else {
+          rawText = await res2.text();
+          rawFull = undefined;
+        }
+        clearTimeout(to2);
+      }
       const latency = Math.round(performance.now() - t0);
       const sanitizedReq = {
         url,
@@ -248,6 +271,9 @@ export class ApiClient {
         const first = t.find(x => x.type && (x.type.includes('text') || x.type === 'output_text'));
         if (first && first.text) return first.text;
       }
+      // Some providers return choices[0].text
+      const t2 = j?.choices?.[0]?.text;
+      if (typeof t2 === 'string') return t2;
     }
     // Fallback
     return JSON.stringify(j);

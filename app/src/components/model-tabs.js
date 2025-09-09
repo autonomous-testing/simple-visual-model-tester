@@ -195,7 +195,7 @@ export class ModelTabs {
             <div class="model-grid wide">
               <div>
                 <label>Max tokens</label>
-                <input data-field="maxTokens" type="number" value="${cfg.maxTokens ?? 300}"/>
+                <input data-field="maxTokens" type="number" value="${cfg.maxTokens ?? 2048}"/>
               </div>
               <div>
                 <label>Timeout (ms)</label>

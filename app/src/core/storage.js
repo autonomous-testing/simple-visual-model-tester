@@ -68,7 +68,7 @@ function defaultModels() {
       reasoningEffort: '',
       model: 'gpt-4o-mini',
       temperature: 0,
-      maxTokens: 300,
+      maxTokens: 2048,
       extraHeaders: undefined,
       timeoutMs: 60000
     },
@@ -83,7 +83,7 @@ function defaultModels() {
       reasoningEffort: '',
       model: 'gpt-4o-mini',
       temperature: 0,
-      maxTokens: 300,
+      maxTokens: 2048,
       extraHeaders: undefined,
       timeoutMs: 60000
     }
@@ -118,7 +118,7 @@ export class Storage {
       reasoningEffort: last?.reasoningEffort ?? '',
       model: last?.model ?? 'gpt-4o-mini',
       temperature: last?.temperature ?? 0,
-      maxTokens: last?.maxTokens ?? 300,
+      maxTokens: last?.maxTokens ?? 2048,
       extraHeaders: last?.extraHeaders ? { ...last.extraHeaders } : undefined,
       timeoutMs: last?.timeoutMs ?? 60000
     };
