@@ -40,6 +40,7 @@ export class ModelTabs {
       // Swatch acts as an enable/disable switch
       const swatch = document.createElement('span');
       swatch.className = 'swatch';
+      swatch.dataset.modelId = cfg.id;
       swatch.setAttribute('role', 'switch');
       swatch.setAttribute('aria-checked', String(cfg.enabled));
       swatch.title = cfg.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
@@ -419,5 +420,13 @@ export class ModelTabs {
     reasoningEffort.addEventListener('change', persist);
 
     return card;
+  }
+
+  // Toggle blinking state of a model tab's color chip while a call is in progress
+  setModelRunning(modelId, running) {
+    const btn = this.header.querySelector(`.tab-btn[data-model-id="${modelId}"]`);
+    const sw = btn?.querySelector('.swatch');
+    if (!sw) return;
+    sw.classList.toggle('running', !!running);
   }
 }

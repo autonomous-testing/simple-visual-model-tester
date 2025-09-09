@@ -1,4 +1,5 @@
 import { blobToDataURL, truncate } from './utils.js';
+import { buildRequestBody } from './providers/builder.js';
 
 /**
  * ApiClient
@@ -41,54 +42,18 @@ export class ApiClient {
       max_tokens: (endpointType === 'responses') ? undefined : maxTokens
     });
 
-    // Some providers (notably via OpenRouter) have subtle differences in multimodal payloads.
-    // Normalize a few common variants for maximum compatibility.
-    const isOpenRouter = /openrouter\.ai/i.test(String(baseURL || ''));
-    const modelSlug = String(model || '').toLowerCase();
-    const isQwenVL = /qwen/.test(modelSlug) && /vl/.test(modelSlug);
-
-    // For Chat API (OpenAI-style), image_url can be either object {url} or string for some providers.
-    const imagePartChat = (isOpenRouter && isQwenVL)
-      ? { type: 'image_url', image_url: b64 }
-      : { type: 'image_url', image_url: { url: b64 } };
-
-    // For Responses API (new OpenAI Responses), types should be input_text / input_image
-    // and image_url is commonly a direct string.
-    const textPartResponses = { type: 'input_text', text: prompt };
-    const sysTextPartResponses = { type: 'input_text', text: sysPrompt };
-    const imagePartResponses = { type: 'input_image', image_url: b64 };
-
-    let body;
-    if (endpointType === 'responses') {
-      body = {
-        model,
-        input: [
-          { role:'system', content:[ sysTextPartResponses ]},
-          { role:'user', content:[ textPartResponses, imagePartResponses ]}
-        ],
-        // JSON-only response formatting
-        text: { format: { type: 'json_object' } },
-        // Azure GPT-5 compatible: use top-level max_output_tokens; omit temperature entirely
-        max_output_tokens: maxTokens,
-        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {})
-      };
-    } else {
-      // chat
-      body = {
-        model, temperature, max_tokens: maxTokens,
-        messages: [
-          // Some providers expect system as a plain string; use string for Qwen via OpenRouter.
-          isOpenRouter && isQwenVL
-            ? { role:'system', content: sysPrompt }
-            : { role:'system', content:[{ type:'text', text: sysPrompt }]},
-          { role:'user', content:[
-            { type:'text', text: prompt },
-            imagePartChat
-          ]}
-        ],
-        response_format: { type:'json_object' }
-      };
-    }
+    // Build provider/mode-specific body using the new builder
+    const body = buildRequestBody({
+      endpointType,
+      baseURL,
+      model,
+      temperature,
+      maxTokens,
+      prompt,
+      sysPrompt,
+      imageB64: b64,
+      reasoningEffort
+    });
 
     const controller = new AbortController();
     const to = setTimeout(() => controller.abort('timeout'), timeoutMs);
@@ -115,16 +80,17 @@ export class ApiClient {
       // Auto-retry for Responses when stopped by max_output_tokens
       if (endpointType === 'responses' && j && j.status === 'incomplete' && j.incomplete_details?.reason === 'max_output_tokens') {
         const increased = Math.min(Math.max(Number(maxTokens) || 300, 300) * 2, 4096);
-        const retryBody = {
+        const retryBody = buildRequestBody({
+          endpointType,
+          baseURL,
           model,
-          input: [
-            { role:'system', content:[ sysTextPartResponses ]},
-            { role:'user', content:[ textPartResponses, imagePartResponses ]}
-          ],
-          text: { format: { type: 'json_object' } },
-          max_output_tokens: increased,
-          ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {})
-        };
+          temperature,
+          maxTokens: increased,
+          prompt,
+          sysPrompt,
+          imageB64: b64,
+          reasoningEffort
+        });
         const controller2 = new AbortController();
         const to2 = setTimeout(() => controller2.abort('timeout'), timeoutMs);
         res = await fetch(url, { method:'POST', headers, body: JSON.stringify(retryBody), signal: controller2.signal });

@@ -40,9 +40,28 @@ export class BatchRunner {
       // Notify UI that a new run started so it can show a partial row immediately
       onRunStart?.({ batchId: batchMeta.id, runId: runMeta.id, runMeta });
 
+      // Set image on overlay immediately so progressive detections draw on it
+      const ctxImage = await createImageBitmap(imageBlob, { imageOrientation: 'from-image' });
+      this.overlay.setImage(ctxImage, imageW, imageH, imageName);
+
       // Kick off parallel calls
       const sysTpl = this.storage?.getSystemPromptTemplate?.() || '';
+      const partialResults = [];
+      const updateUI = async () => {
+        try {
+          // Draw whatever we have so far
+          const items = partialResults.filter(r => r.status === 'ok' && r.parsed?.primary).map(r => ({
+            color: r.color, model: r.modelDisplayName, det: r.parsed.primary
+          }));
+          this.overlay.drawDetections(items);
+          // Show partial results in the table without waiting for all
+          this.resultsTable.showRun(runMeta, { id: runMeta.id, results: partialResults, logs: {} });
+        } catch { /* noop */ }
+      };
+
       const promises = enabledModels.map(async m => {
+        // mark model as running (blink tab chip)
+        this.modelTabs?.setModelRunning?.(m.id, true);
         let status = 'ok', latencyMs = null, rawText = '', rawFull = undefined, parsed = null, errorMessage = undefined;
         const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
         try {
@@ -69,19 +88,13 @@ export class BatchRunner {
           errorMessage
         };
         await this._appendResult(runMeta.id, result);
+        partialResults.push(result);
+        await updateUI();
+        // clear running state for this model
+        this.modelTabs?.setModelRunning?.(m.id, false);
         return result;
       });
-
       const settled = await Promise.all(promises);
-
-      // Update overlay + results table
-      const items = settled.filter(r => r.status === 'ok' && r.parsed?.primary).map(r => ({
-        color: r.color, model: r.modelDisplayName, det: r.parsed.primary
-      }));
-      // Update canvas
-      const ctxImage = await createImageBitmap(imageBlob, { imageOrientation: 'from-image' });
-      this.overlay.setImage(ctxImage, imageW, imageH, imageName);
-      this.overlay.drawDetections(items);
 
       // Update summaries
       const okCount = settled.filter(r => r.status === 'ok').length;
@@ -100,7 +113,7 @@ export class BatchRunner {
       batchMeta.summary.avgLatencyMs = avgLatency != null ? (prevAvg == null ? avgLatency : Math.round((prevAvg + avgLatency)/2)) : prevAvg;
       await this.history.updateBatchMeta(batchMeta);
 
-      // Results panel reflects the current run
+      // Final refresh of the results table using stored run data
       const runData = await this.history.getRunData(runMeta.id);
       this.resultsTable.showRun(runMeta, runData);
 
