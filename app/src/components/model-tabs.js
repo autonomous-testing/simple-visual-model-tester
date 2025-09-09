@@ -173,7 +173,7 @@ export class ModelTabs {
                 <input data-field="color" type="text" value="${cfg.color}"/>
               </div>
               <div>
-                <label>Model ID</label>
+                <label data-el="modelLabel">Model ID</label>
                 <input data-field="model" type="text" value="${cfg.model}" placeholder="gpt-4o-mini"/>
               </div>
               <div class="full">
@@ -181,11 +181,11 @@ export class ModelTabs {
                 <input data-field="baseURL" type="text" value="${cfg.baseURL}" placeholder="https://api.example.com/v1"/>
               </div>
               <div>
-                <label>API Key</label>
+                <label data-el="apiKeyLabel">API Key</label>
                 <input data-field="apiKey" type="password" value="${cfg.apiKey || ''}" placeholder="sk-..."/>
               </div>
               <div>
-                <label>API Version</label>
+                <label data-el="apiVersionLabel">API Version</label>
                 <input data-field="apiVersion" type="text" value="${cfg.apiVersion || ''}" placeholder="2024-08-01-preview"/>
               </div>
             </div>
@@ -195,7 +195,7 @@ export class ModelTabs {
           <div class="model-section">
             <div class="model-grid wide">
               <div>
-                <label>Max tokens</label>
+                <label data-el="maxTokensLabel">Max tokens</label>
                 <input data-field="maxTokens" type="number" value="${cfg.maxTokens ?? 2048}"/>
               </div>
               <div>
@@ -211,6 +211,7 @@ export class ModelTabs {
               <div class="btn-group" role="group" aria-label="Endpoint type">
                 <button type="button" class="btn endpoint-btn ${cfg.endpointType==='chat' ? 'active':''}" data-endpoint="chat" aria-pressed="${cfg.endpointType==='chat'}">Chat</button>
                 <button type="button" class="btn endpoint-btn ${cfg.endpointType==='responses' ? 'active':''}" data-endpoint="responses" aria-pressed="${cfg.endpointType==='responses'}">Responses</button>
+                <button type="button" class="btn endpoint-btn ${cfg.endpointType==='groundingdino' ? 'active':''}" data-endpoint="groundingdino" aria-pressed="${cfg.endpointType==='groundingdino'}">GroundingDINO</button>
               </div>
               <div class="inline-field endpoint-field" data-endpoint="chat" style="display:${cfg.endpointType==='chat' ? 'flex':'none'}">
                 <label>Temperature</label>
@@ -224,6 +225,12 @@ export class ModelTabs {
                   <option value="medium" ${cfg.reasoningEffort==='medium'?'selected':''}>medium</option>
                   <option value="high" ${cfg.reasoningEffort==='high'?'selected':''}>high</option>
                 </select>
+              </div>
+              <div class="inline-field endpoint-field" data-endpoint="groundingdino" style="display:${cfg.endpointType==='groundingdino' ? 'flex':'none'}; gap:8px;">
+                <label>Box thr</label>
+                <input data-field="dinoBoxThreshold" type="number" step="0.01" min="0" max="1" value="${cfg.dinoBoxThreshold ?? 0.35}" style="width:90px"/>
+                <label>Text thr</label>
+                <input data-field="dinoTextThreshold" type="number" step="0.01" min="0" max="1" value="${cfg.dinoTextThreshold ?? 0.25}" style="width:90px"/>
               </div>
             </div>
           </div>
@@ -246,12 +253,18 @@ export class ModelTabs {
     let currentEndpointType = cfg.endpointType || 'chat';
     const baseURL = card.querySelector('input[data-field="baseURL"]');
     const model = card.querySelector('input[data-field="model"]');
+    const modelLabelEl = card.querySelector('[data-el="modelLabel"]');
     const apiVersion = card.querySelector('input[data-field="apiVersion"]');
+    const apiVersionLabelEl = card.querySelector('[data-el="apiVersionLabel"]');
     const reasoningEffort = card.querySelector('select[data-field="reasoningEffort"]');
     const key = card.querySelector('input[data-field="apiKey"]');
+    const apiKeyLabelEl = card.querySelector('[data-el="apiKeyLabel"]');
     const temp = card.querySelector('input[data-field="temperature"]');
     const maxTok = card.querySelector('input[data-field="maxTokens"]');
+    const maxTokensLabelEl = card.querySelector('[data-el="maxTokensLabel"]');
     const timeout = card.querySelector('input[data-field="timeoutMs"]');
+    const dinoBoxThreshold = card.querySelector('input[data-field="dinoBoxThreshold"]');
+    const dinoTextThreshold = card.querySelector('input[data-field="dinoTextThreshold"]');
 
     const headersTa = card.querySelector('textarea[data-field="extraHeaders"]');
     const logEl = card.querySelector('[data-log]');
@@ -311,6 +324,38 @@ export class ModelTabs {
     color.addEventListener('focus', showColorPopover);
     color.addEventListener('blur', () => { /* keep open for interactions; closed by outside click */ });
 
+    const updateEndpointNonApplicableUI = () => {
+      const isDino = currentEndpointType === 'groundingdino';
+      if (model) {
+        model.disabled = isDino;
+        model.placeholder = isDino ? '(not used for DINO)' : 'gpt-4o-mini';
+        if (isDino) {
+          const v = String(model.value || '');
+          if (!v || /(gpt|claude|qwen|llava|mini|vision)/i.test(v)) {
+            model.value = 'GroundingDINO';
+          }
+        }
+      }
+      if (modelLabelEl) {
+        modelLabelEl.textContent = isDino ? 'Display name (UI only)' : 'Model ID';
+      }
+      if (apiVersion) apiVersion.disabled = isDino;
+      if (apiVersionLabelEl) apiVersionLabelEl.textContent = isDino ? 'API Version (n/a)' : 'API Version';
+      if (maxTok) maxTok.disabled = isDino;
+      if (maxTokensLabelEl) maxTokensLabelEl.textContent = isDino ? 'Max tokens (n/a)' : 'Max tokens';
+      if (key) {
+        key.disabled = isDino;
+        key.placeholder = isDino ? '(not used for DINO)' : 'sk-...';
+      }
+      if (apiKeyLabelEl) apiKeyLabelEl.textContent = isDino ? 'API Key (n/a)' : 'API Key';
+      if (headersTa) {
+        headersTa.disabled = isDino;
+        headersTa.placeholder = isDino ? '(not used for DINO)' : '{"X-Org":"..."}';
+      }
+    };
+    // Initialize once
+    updateEndpointNonApplicableUI();
+
     const persist = () => {
       let extra = undefined;
       try {
@@ -333,6 +378,8 @@ export class ModelTabs {
         maxTokens: Number(maxTok.value),
         timeoutMs: Number(timeout.value),
         extraHeaders: extra,
+        dinoBoxThreshold: dinoBoxThreshold ? Number(dinoBoxThreshold.value) : undefined,
+        dinoTextThreshold: dinoTextThreshold ? Number(dinoTextThreshold.value) : undefined,
       };
       this.storage.updateModel(updated);
 
@@ -406,6 +453,8 @@ export class ModelTabs {
         endpointPanels.forEach(p => {
           p.style.display = (p.dataset.endpoint === currentEndpointType) ? 'flex' : 'none';
         });
+        // Update disabled/labels for non-applicable fields
+        updateEndpointNonApplicableUI();
         persist();
       });
     });
@@ -418,6 +467,8 @@ export class ModelTabs {
     timeout.addEventListener('input', persist);
     headersTa.addEventListener('input', persist);
     reasoningEffort.addEventListener('change', persist);
+    if (dinoBoxThreshold) dinoBoxThreshold.addEventListener('input', persist);
+    if (dinoTextThreshold) dinoTextThreshold.addEventListener('input', persist);
 
     return card;
   }

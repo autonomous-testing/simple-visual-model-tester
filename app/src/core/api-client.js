@@ -11,23 +11,34 @@ export class ApiClient {
     const url = this._endpointUrl(model);
     const t0 = performance.now();
     // Build a minimal payload appropriate for the endpoint type
-    const body = (model.endpointType === 'responses')
-      // Responses API expects input_* types; use top-level max_output_tokens (Azure-compatible)
-      ? { model: model.model, max_output_tokens: 16, input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }] }
-      // Chat API can accept either string or array. Use simple string for ping.
-      : { model: model.model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] };
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: this._headers({ apiKey: model.apiKey, extraHeaders: model.extraHeaders, baseURL: model.baseURL }),
-      body: JSON.stringify(body),
-    });
+    let res;
+    if (model.endpointType === 'groundingdino') {
+      // Use a very simple GET without custom headers to avoid preflight.
+      // Some DINO servers don't support GET and return 405; that's acceptable for Test.
+      res = await fetch(url, { method: 'GET' });
+    } else {
+      const body = (model.endpointType === 'responses')
+        // Responses API expects input_* types; use top-level max_output_tokens (Azure-compatible)
+        ? { model: model.model, max_output_tokens: 16, input: [{ role: 'user', content: [{ type: 'input_text', text: 'ping' }] }] }
+        // Chat API can accept either string or array. Use simple string for ping.
+        : { model: model.model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] };
+      res = await fetch(url, {
+        method: 'POST',
+        headers: this._headers({ apiKey: model.apiKey, extraHeaders: model.extraHeaders, baseURL: model.baseURL }),
+        body: JSON.stringify(body),
+      });
+    }
     const timeMs = Math.round(performance.now() - t0);
     return { ok: res.ok, status: res.status, timeMs };
   }
 
-  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=2048, extraHeaders, timeoutMs=60000, apiVersion, reasoningEffort }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
+  async callModel({ model, baseURL, apiKey, endpointType, temperature=0, maxTokens=2048, extraHeaders, timeoutMs=60000, apiVersion, reasoningEffort, dinoBoxThreshold, dinoTextThreshold }, imageBlob, prompt, onLogSanitized, imageW, imageH, systemPromptTemplate) {
     const url = this._endpointUrl({ baseURL, endpointType, apiVersion });
-    const headers = this._headers({ apiKey, extraHeaders, baseURL });
+    // For GroundingDINO, avoid custom headers to prevent CORS preflight (OPTIONS) on many servers.
+    // Use bare headers and FormData for a simple CORS request.
+    let headers = (endpointType === 'groundingdino')
+      ? {}
+      : this._headers({ apiKey, extraHeaders, baseURL });
     const b64 = await blobToDataURL(imageBlob);
 
     const sysPrompt = this._fillTemplate(systemPromptTemplate || '', {
@@ -43,6 +54,7 @@ export class ApiClient {
     });
 
     // Build provider/mode-specific body using the new builder
+    // Build request body (JSON for LLMs; will override for GroundingDINO with FormData)
     const body = buildRequestBody({
       endpointType,
       baseURL,
@@ -52,7 +64,9 @@ export class ApiClient {
       prompt,
       sysPrompt,
       imageB64: b64,
-      reasoningEffort
+      reasoningEffort,
+      dinoBoxThreshold,
+      dinoTextThreshold
     });
 
     const controller = new AbortController();
@@ -61,17 +75,37 @@ export class ApiClient {
     let status = 0;
     let rawText = '';
     try {
-      let res = await fetch(url, {
-        method: 'POST', headers, body: JSON.stringify(body),
-        signal: controller.signal
-      });
+      let res;
+      if (endpointType === 'groundingdino') {
+        // For GroundingDINO servers that expect multipart/form-data
+        // Build FormData: file, prompt, thresholds
+        const fd = new FormData();
+        const mime = imageBlob?.type || 'image/png';
+        const ext = mime.includes('jpeg') ? 'jpg' : (mime.split('/')[1] || 'png');
+        const fname = `image.${ext}`;
+        // Append as file field named 'file'
+        // Append Blob with filename; let browser set proper content-type per part
+        fd.append('file', imageBlob, fname);
+        fd.append('prompt', String(prompt || ''));
+        if (dinoBoxThreshold != null) fd.append('box_threshold', String(dinoBoxThreshold));
+        if (dinoTextThreshold != null) fd.append('text_threshold', String(dinoTextThreshold));
+        // Remove JSON content-type so browser sets multipart boundary
+        headers = this._sanitizeForMultipart(headers);
+        res = await fetch(url, { method: 'POST', headers, body: fd, signal: controller.signal });
+      } else {
+        res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
+      }
       status = res.status;
       // Try to parse JSON; if not JSON, fall back to text
       let contentType = res.headers.get('content-type') || '';
       let j;
       if (contentType.includes('application/json')) {
         j = await res.json();
-        rawText = this._extractTextFromResponse(j, endpointType);
+        if (endpointType === 'groundingdino') {
+          rawText = this._adaptGroundingDinoToJson(j, imageW, imageH);
+        } else {
+          rawText = this._extractTextFromResponse(j, endpointType);
+        }
         var rawFull = JSON.stringify(j);
       } else {
         rawText = await res.text();
@@ -107,7 +141,7 @@ export class ApiClient {
         clearTimeout(to2);
       }
       // Auto-retry for Chat when finish_reason === 'length'
-      if (endpointType !== 'responses' && j && Array.isArray(j.choices) && j.choices[0]?.finish_reason === 'length') {
+      if (endpointType !== 'responses' && endpointType !== 'groundingdino' && j && Array.isArray(j.choices) && j.choices[0]?.finish_reason === 'length') {
         const increased = Math.min(Math.max(Number(maxTokens) || 300, 300) * 2, 4096);
         const retryBody = {
           ...body,
@@ -133,7 +167,9 @@ export class ApiClient {
       const sanitizedReq = {
         url,
         headers: this._sanitizeHeaders(headers),
-        bodyPreview: truncate(JSON.stringify(body), 1200)
+        bodyPreview: (endpointType === 'groundingdino')
+          ? 'multipart/form-data (file, prompt, thresholds)'
+          : truncate(JSON.stringify(body), 1200)
       };
       const log = {
         request: sanitizedReq,
@@ -149,7 +185,9 @@ export class ApiClient {
       const sanitizedReq = {
         url,
         headers: this._sanitizeHeaders(headers),
-        bodyPreview: truncate(JSON.stringify(body), 1200)
+        bodyPreview: (endpointType === 'groundingdino')
+          ? 'multipart/form-data (file, prompt, thresholds)'
+          : truncate(JSON.stringify(body), 1200)
       };
       const log = {
         request: sanitizedReq,
@@ -167,9 +205,13 @@ export class ApiClient {
     try {
       const u = new URL(baseURL);
       const path = (u.pathname || '').replace(/\/$/, '');
-      const alreadyHas = /\/(responses|chat\/completions)$/.test(path);
-      if (!alreadyHas) {
-        u.pathname = path + (endpointType === 'responses' ? '/responses' : '/chat/completions');
+      if (endpointType === 'groundingdino') {
+        // Use baseURL as-is for custom servers
+      } else {
+        const alreadyHas = /\/(responses|chat\/completions)$/.test(path);
+        if (!alreadyHas) {
+          u.pathname = path + (endpointType === 'responses' ? '/responses' : '/chat/completions');
+        }
       }
       // Append api-version if provided and not present
       const hasApiVersion = u.searchParams.has('api-version');
@@ -178,6 +220,7 @@ export class ApiClient {
     } catch (_) {
       // Not an absolute URL; fallback to simple concatenation
       const base = String(baseURL || '').replace(/\/$/, '');
+      if (endpointType === 'groundingdino') return base;
       const url = endpointType === 'responses' ? `${base}/responses` : `${base}/chat/completions`;
       if (apiVersion && !/api-version=/.test(url)) {
         return url + (url.includes('?') ? `&api-version=${apiVersion}` : `?api-version=${apiVersion}`);
@@ -216,6 +259,12 @@ export class ApiClient {
     delete clone['Api-Key'];
     return clone;
   }
+  _sanitizeForMultipart(h) {
+    const clone = { ...h };
+    delete clone['Content-Type'];
+    delete clone['content-type'];
+    return clone;
+  }
   _extractTextFromResponse(j, endpointType) {
     // OpenAI-style
     if (endpointType === 'responses') {
@@ -243,5 +292,84 @@ export class ApiClient {
     }
     // Fallback
     return JSON.stringify(j);
+  }
+
+  _adaptGroundingDinoToJson(serverResponse, imageW, imageH) {
+    // Adapt various possible server shapes to canonical detection JSON.
+    // Specifically supports Label Studio-like structure returned by
+    // https://dino.d2.wopee.io/predict (see user's curl example).
+    try {
+      const w = Number(serverResponse.width || imageW || 0);
+      const h = Number(serverResponse.height || imageH || 0);
+
+      const boxes = [];
+
+      // Shape A: { results: [ { result: [ { type:'rectanglelabels', value: { x,y,width,height,score,text } } ], score } ] }
+      if (Array.isArray(serverResponse.results)) {
+        for (const group of serverResponse.results) {
+          const arr = Array.isArray(group?.result) ? group.result : [];
+          for (const item of arr) {
+            const v = item?.value || {};
+            if (item?.type === 'rectanglelabels' && v) {
+              // Assume normalized [0..1] floats for coordinates; convert to pixels.
+              const bx = Math.round(Number(v.x || 0) * w);
+              const by = Math.round(Number(v.y || 0) * h);
+              const bw = Math.round(Number(v.width || 0) * w);
+              const bh = Math.round(Number(v.height || 0) * h);
+              const conf = Number(v.score != null ? v.score : (group?.score ?? 0));
+              // Some responses might provide width/height=0 (point-like). Filter non-positive boxes later.
+              boxes.push({ x: bx, y: by, width: bw, height: bh, confidence: Math.max(0, Math.min(1, conf || 0)) });
+            }
+          }
+        }
+      }
+
+      // Shape B: { detections: [{ x,y,width,height,confidence }] } in pixel units
+      if (Array.isArray(serverResponse.detections)) {
+        for (const d of serverResponse.detections) {
+          boxes.push({
+            x: Math.max(0, Math.round(d.x || 0)),
+            y: Math.max(0, Math.round(d.y || 0)),
+            width: Math.max(0, Math.round(d.width || 0)),
+            height: Math.max(0, Math.round(d.height || 0)),
+            confidence: Math.max(0, Math.min(1, Number(d.confidence || 0)))
+          });
+        }
+      }
+
+      // Order by confidence desc
+      const ordered = boxes
+        .filter(b => Number.isFinite(b.x) && Number.isFinite(b.y))
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+
+      let primary, others = [];
+      if (ordered.length > 0) {
+        // If top box lacks area, fallback to point primary
+        const top = ordered[0];
+        if ((top.width || 0) > 0 && (top.height || 0) > 0) {
+          primary = { type: 'bbox', ...top };
+        } else {
+          primary = { type: 'point', x: top.x, y: top.y, confidence: top.confidence };
+        }
+        others = ordered.slice(1).map(b => ((b.width || 0) > 0 && (b.height || 0) > 0)
+          ? ({ type: 'bbox', ...b })
+          : ({ type: 'point', x: b.x, y: b.y, confidence: b.confidence }));
+      } else {
+        // Fallback to center point guess
+        primary = { type: 'point', x: Math.round(w / 2), y: Math.round(h / 2), confidence: 0.1 };
+      }
+
+      const out = {
+        coordinate_system: 'pixel',
+        origin: 'top-left',
+        image_size: { width: w, height: h },
+        primary,
+        others
+      };
+      return JSON.stringify(out);
+    } catch (e) {
+      // As a last resort, stringify the server response
+      return JSON.stringify(serverResponse);
+    }
   }
 }

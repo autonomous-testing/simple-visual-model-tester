@@ -70,7 +70,9 @@ function defaultModels() {
       temperature: 0,
       maxTokens: 2048,
       extraHeaders: undefined,
-      timeoutMs: 60000
+      timeoutMs: 60000,
+      dinoBoxThreshold: 0.35,
+      dinoTextThreshold: 0.25
     },
     {
       id: uuid(),
@@ -85,7 +87,9 @@ function defaultModels() {
       temperature: 0,
       maxTokens: 2048,
       extraHeaders: undefined,
-      timeoutMs: 60000
+      timeoutMs: 60000,
+      dinoBoxThreshold: 0.35,
+      dinoTextThreshold: 0.25
     }
   ];
 }
@@ -120,7 +124,9 @@ export class Storage {
       temperature: last?.temperature ?? 0,
       maxTokens: last?.maxTokens ?? 2048,
       extraHeaders: last?.extraHeaders ? { ...last.extraHeaders } : undefined,
-      timeoutMs: last?.timeoutMs ?? 60000
+      timeoutMs: last?.timeoutMs ?? 60000,
+      dinoBoxThreshold: last?.dinoBoxThreshold ?? 0.35,
+      dinoTextThreshold: last?.dinoTextThreshold ?? 0.25
     };
     all.push(model);
     this.setModelConfigs(all);

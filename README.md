@@ -38,6 +38,43 @@ npx http-server app -p 8080
   }
   ```
 
+### GroundingDINO Support (Optional)
+
+Besides LLM providers, the app can call a local GroundingDINO server for phrase‑grounded object detection.
+
+- Add a model and choose Endpoint Type: `GroundingDINO`.
+- Set Base URL to your detection endpoint (example server below serves `/groundingdino/detect`).
+- Adjust `Box thr` and `Text thr` as desired.
+
+Example server is included in `server/`:
+
+1) Create venv and install requirements, then install GroundingDINO from source.
+2) Set `GROUNDING_DINO_CONFIG_PATH` and `GROUNDING_DINO_WEIGHTS_PATH` env vars.
+3) Run: `uvicorn server.groundingdino_api:app --port 8001`
+4) In the app, set Base URL to `http://localhost:8001/groundingdino/detect` and test.
+
+The SPA adapts common GroundingDINO server responses into its canonical JSON for overlay rendering and CSV exports. It supports:
+- Pixel-space detections: `{ width, height, detections: [{ x,y,width,height,confidence }] }`
+- Label Studio–style results like your remote service returns: `{ results: [{ result: [{ type: 'rectanglelabels', value: { x,y,width,height,score } }], score }] }` with normalized [0..1] coordinates (scaled to pixels using the input image size).
+
+Remote example (already running):
+- Endpoint: `https://dino.d2.wopee.io/predict`
+- Configure a model with:
+  - Endpoint Type: `GroundingDINO`
+  - Base URL: `https://dino.d2.wopee.io/predict`
+  - Model (label): e.g. `GroundingDINO`
+  - Box thr: `0.35` • Text thr: `0.25`
+
+The client uploads the image as multipart/form-data with fields `file`, `prompt`, `box_threshold`, `text_threshold`, matching this curl you used:
+
+```
+curl -i -X POST "https://dino.d2.wopee.io/predict" \
+  -F "file=@Downloads/screenshot.png" \
+  -F "prompt=button" \
+  -F "box_threshold=0.35" \
+  -F "text_threshold=0.25"
+```
+
 ## Browser Support
 
 - Designed for evergreen browsers (ES modules). Uses `createImageBitmap({ imageOrientation: 'from-image' })` to respect EXIF rotation when supported, with a safe fallback.

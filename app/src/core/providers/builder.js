@@ -59,13 +59,29 @@ function buildResponsesPayload(ctx) {
   };
 }
 
-export function buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64, reasoningEffort }) {
-  const ctx = { endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64, reasoningEffort };
+export function buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold }) {
+  const ctx = { endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold };
   if (endpointType === 'responses') return buildResponsesPayload(ctx);
+  if (endpointType === 'groundingdino') {
+    // For GroundingDINO, expect the Base URL to point directly to the detection endpoint.
+    // The server should accept: { image: DataURL, prompt: string, box_threshold?: number, text_threshold?: number }
+    // Thresholds may be provided via extra headers or the model string; however, the UI stores
+    // them on the model config as dinoBoxThreshold / dinoTextThreshold and ApiClient injects them
+    // into this builder by packing them into the "model" field in a simple way, or via extraHeaders.
+    const payload = {
+      image: imageB64,
+      prompt: prompt || '',
+    };
+    // Allow callers to pass thresholds using a simple convention on model string, e.g. "GroundingDINO:0.35:0.25"
+    // but prefer explicit fields if present via ctx.temperature/maxTokens abuse is not great. ApiClient will pass
+    // dino thresholds via special symbols on ctx.
+    if (ctx.dinoBoxThreshold != null) payload.box_threshold = ctx.dinoBoxThreshold;
+    if (ctx.dinoTextThreshold != null) payload.text_threshold = ctx.dinoTextThreshold;
+    return payload;
+  }
   return buildChatPayload(ctx);
 }
 
 export function detectProviderKind(baseURL) {
   return detectProvider(baseURL);
 }
-

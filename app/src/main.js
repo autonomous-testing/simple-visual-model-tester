@@ -62,6 +62,7 @@ const modelTabs = new ModelTabs(modelsTabsHeader, modelsTabsBody, storage);
 const historyTable = new HistoryTable(historyTableEl, historyStore);
 const historyDialog = new HistoryDialog(document.getElementById('historyDialog'), historyStore, overlay, resultsTable, imageLoader);
 const storageRoot = document.getElementById('sidebar-storage');
+const corsWarning = document.getElementById('corsWarning');
 
 let activeBatch = null;
 
@@ -71,6 +72,13 @@ modelTabs.render();
 resultsTable.renderScopeBar();
 historyTable.refresh();
 renderPromptTemplateTab();
+
+// Show CORS warning if opened from file:// to avoid Origin null
+try {
+  if (location.protocol === 'file:') {
+    if (corsWarning) corsWarning.style.display = 'block';
+  }
+} catch {}
 
 function setBadge(text) {
   badge.textContent = text;
