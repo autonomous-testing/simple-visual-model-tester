@@ -87,7 +87,7 @@ export class HistoryStore {
   }
 
   // Factory helpers for Batch/Run meta
-  async createBatchMeta({ iterations, imageBlob, imageName, prompt, enabledModels }) {
+  async createBatchMeta({ iterations, imageBlob, imageName, prompt, dinoPrompt, enabledModels }) {
     const id = ulid();
     const createdAtIso = new Date().toISOString();
     const imgHash = await sha256(imageBlob);
@@ -99,6 +99,7 @@ export class HistoryStore {
       imageName,
       imageW: 0, imageH: 0, // filled on first run
       prompt,
+      dinoPrompt,
       imageRef: { kind:'idb-blob', key: imgHash },
       modelSnapshots: enabledModels.map(m => ({
         modelConfigId: m.id,
@@ -124,6 +125,7 @@ export class HistoryStore {
       imageName: batchMeta.imageName,
       imageW, imageH,
       prompt: batchMeta.prompt,
+      dinoPrompt: batchMeta.dinoPrompt,
       enabledModelIds: batchMeta.modelSnapshots.map(m => m.modelConfigId),
       modelSnapshots: batchMeta.modelSnapshots,
       imageRef: batchMeta.imageRef,

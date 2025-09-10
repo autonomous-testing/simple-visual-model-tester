@@ -232,6 +232,7 @@ export class ModelTabs {
                 <label>Text thr</label>
                 <input data-field="dinoTextThreshold" type="number" step="0.01" min="0" max="1" value="${cfg.dinoTextThreshold ?? 0.25}" style="width:90px"/>
               </div>
+              
             </div>
           </div>
         </div>

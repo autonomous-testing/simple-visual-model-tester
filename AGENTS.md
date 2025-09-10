@@ -47,6 +47,7 @@ Data flow (happy path): UI → BatchRunner → ApiClient (→ Provider builder) 
   - Responses API: `input[]` with `input_text`/`input_image`, `max_output_tokens` at top level.
 - `api-client.js` extracts text from varied response shapes and adapts GroundingDINO responses into canonical JSON for overlay/CSV.
 - GroundingDINO: Prefer multipart form-data to avoid CORS preflight; retries JSON as fallback; accepts multiple prompt key synonyms.
+  - Uses the global “DINO Prompt” (input below the main Prompt) for the text query and does not use the system prompt. All GroundingDINO models share this prompt.
 
 ## Common Tasks (Step‑by‑Step)
 

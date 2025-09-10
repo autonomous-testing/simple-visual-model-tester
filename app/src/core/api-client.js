@@ -74,9 +74,10 @@ export class ApiClient {
     const t0 = performance.now();
     let status = 0;
     let rawText = '';
+    let attemptKind = 'single';
     try {
       let res;
-      let attemptKind = 'single';
+      attemptKind = 'single';
       if (endpointType === 'groundingdino') {
         // For GroundingDINO servers that expect multipart/form-data
         // Build FormData: file, prompt, thresholds. Include common synonyms to maximize compatibility.

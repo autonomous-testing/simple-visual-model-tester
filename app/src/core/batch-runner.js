@@ -13,13 +13,13 @@ export class BatchRunner {
 
   cancel() { this.cancelRequested = true; }
 
-  async runBatch({ iterations, imageBlob, imageName, prompt, enabledModels }, onProgress, onRunStart) {
+  async runBatch({ iterations, imageBlob, imageName, prompt, dinoPrompt, enabledModels }, onProgress, onRunStart) {
     this.cancelRequested = false;
     const client = new ApiClient();
     const parser = new Parser();
 
     // Prepare batch meta
-    const batchMeta = await this.history.createBatchMeta({ iterations, imageBlob, imageName, prompt, enabledModels });
+    const batchMeta = await this.history.createBatchMeta({ iterations, imageBlob, imageName, prompt, dinoPrompt, enabledModels });
     await this.history.addBatchMeta(batchMeta);
 
     let done = 0;
@@ -65,7 +65,8 @@ export class BatchRunner {
         let status = 'ok', latencyMs = null, rawText = '', rawFull = undefined, parsed = null, errorMessage = undefined;
         const onLog = (log) => this._appendLog(runMeta.id, m.id, log);
         try {
-          const res = await client.callModel(m, imageBlob, prompt, onLog, imageW, imageH, sysTpl);
+          const modelPrompt = (m.endpointType === 'groundingdino') ? (dinoPrompt || '') : prompt;
+          const res = await client.callModel(m, imageBlob, modelPrompt, onLog, imageW, imageH, sysTpl);
           latencyMs = res.latencyMs;
           rawText = res.rawText;
           rawFull = res.rawFull;

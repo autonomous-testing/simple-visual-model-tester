@@ -13,6 +13,7 @@ import { uuid, clamp, short, onKey } from './core/utils.js';
 const fileInput = document.getElementById('fileInput');
 const promptEl = document.getElementById('prompt');
 const runBtn = document.getElementById('runBtn');
+const dinoPromptEl = document.getElementById('dinoPrompt');
 const cancelBtn = document.getElementById('cancelBtn');
 const iterationsEl = document.getElementById('iterations');
 const badge = document.getElementById('badge');
@@ -68,6 +69,7 @@ let activeBatch = null;
 
 // Initialize UI from storage
 promptEl.value = storage.getLastPrompt() || '';
+if (dinoPromptEl) dinoPromptEl.value = storage.getLastDinoPrompt() || '';
 modelTabs.render();
 resultsTable.renderScopeBar();
 historyTable.refresh();
@@ -128,6 +130,12 @@ promptEl.addEventListener('input', () => {
   storage.setLastPrompt(promptEl.value);
   setBadge('Working: Unsaved');
 });
+if (dinoPromptEl) {
+  dinoPromptEl.addEventListener('input', () => {
+    storage.setLastDinoPrompt(dinoPromptEl.value);
+    setBadge('Working: Unsaved');
+  });
+}
 
 // Keyboard shortcuts
 onKey('KeyR', () => runBtn.click());
@@ -146,15 +154,19 @@ function hideBatchStatus() {
 // Run / Cancel
 runBtn.addEventListener('click', async () => {
   const prompt = promptEl.value.trim();
+  const dinoPrompt = (dinoPromptEl?.value || '').trim();
   const iterations = clamp(parseInt(iterationsEl.value || '1', 10), 1, 50);
   const img = imageLoader.getCurrent();
   const enabledModels = modelTabs.getEnabledModels();
-  if (!prompt || !img || enabledModels.length === 0) {
-    alert('Please load an image, enter a prompt, and enable at least one model.');
+  const needTextPrompt = enabledModels.some(m => m.endpointType !== 'groundingdino');
+  const needDinoPrompt = enabledModels.some(m => m.endpointType === 'groundingdino');
+  if (!img || enabledModels.length === 0 || (needTextPrompt && !prompt) || (needDinoPrompt && !dinoPrompt)) {
+    alert('Please load an image. Enter Prompt for text models. Enter DINO Prompt for GroundingDINO models.');
     return;
   }
 
   storage.setLastPrompt(prompt);
+  if (needDinoPrompt) storage.setLastDinoPrompt(dinoPrompt);
   const batchRunner = new BatchRunner(historyStore, overlay, resultsTable, modelTabs, storage);
   cancelBtn.hidden = false;
 
@@ -184,6 +196,7 @@ runBtn.addEventListener('click', async () => {
     imageBlob: img.blob,
     imageName: img.name,
     prompt,
+    dinoPrompt,
     enabledModels,
   }, onProgress, onRunStart).finally(onFinish);
 });
@@ -208,6 +221,10 @@ historyTable.onSelect(async (entry) => {
   // Also restore the prompt to make re-running easy
   promptEl.value = runMeta.prompt || '';
   storage.setLastPrompt(promptEl.value);
+  if (dinoPromptEl) {
+    dinoPromptEl.value = runMeta.dinoPrompt || '';
+    storage.setLastDinoPrompt(dinoPromptEl.value);
+  }
   historyTable.setSelected(runMeta.id);
   setBadge(`Viewing: Run #${historyTable.labelForRun(runMeta.id)} • Batch #${runMeta.batchId.slice(-6)} (${runMeta.batchSeq}/${historyStore.batchIterations(runMeta.batchId)})`);
 });

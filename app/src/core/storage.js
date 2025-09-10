@@ -17,6 +17,7 @@ function randomColor(exclude) {
 const LS_MODELS = 'ui-detective:model-configs';
 const LS_LAST_PROMPT = 'ui-detective:last-prompt';
 const LS_SYS_PROMPT_TPL = 'ui-detective:sys-prompt-template';
+const LS_DINO_PROMPT = 'ui-detective:last-dino-prompt';
 
 function defaultSystemPromptTemplate() {
   return (
@@ -71,6 +72,8 @@ function defaultModels() {
       maxTokens: 2048,
       extraHeaders: undefined,
       timeoutMs: 60000,
+      // GroundingDINO-specific options
+      dinoPrompt: '',
       dinoBoxThreshold: 0.35,
       dinoTextThreshold: 0.25
     },
@@ -88,6 +91,8 @@ function defaultModels() {
       maxTokens: 2048,
       extraHeaders: undefined,
       timeoutMs: 60000,
+      // GroundingDINO-specific options
+      dinoPrompt: '',
       dinoBoxThreshold: 0.35,
       dinoTextThreshold: 0.25
     }
@@ -125,6 +130,7 @@ export class Storage {
       maxTokens: last?.maxTokens ?? 2048,
       extraHeaders: last?.extraHeaders ? { ...last.extraHeaders } : undefined,
       timeoutMs: last?.timeoutMs ?? 60000,
+      dinoPrompt: last?.dinoPrompt ?? '',
       dinoBoxThreshold: last?.dinoBoxThreshold ?? 0.35,
       dinoTextThreshold: last?.dinoTextThreshold ?? 0.25
     };
@@ -145,6 +151,8 @@ export class Storage {
 
   getLastPrompt() { return localStorage.getItem(LS_LAST_PROMPT) || ''; }
   setLastPrompt(s) { localStorage.setItem(LS_LAST_PROMPT, s); }
+  getLastDinoPrompt() { return localStorage.getItem(LS_DINO_PROMPT) || ''; }
+  setLastDinoPrompt(s) { localStorage.setItem(LS_DINO_PROMPT, s); }
 
   // System prompt template
   getSystemPromptTemplate() {
