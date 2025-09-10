@@ -70,10 +70,13 @@ export function buildRequestBody({ endpointType, baseURL, model, temperature, ma
     // into this builder by packing them into the "model" field in a simple way, or via extraHeaders.
     const p = prompt || '';
     const payload = {
+      // Image/base64 synonyms
       image: imageB64,
-      image_base64: imageB64, // some servers prefer this key
-      prompt: p,
+      image_base64: imageB64,
+      file: imageB64,
+      file_base64: imageB64,
       // Prompt synonyms to be robust across GroundingDINO servers
+      prompt: p,
       text: p,
       caption: p,
       text_prompt: p,

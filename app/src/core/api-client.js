@@ -103,7 +103,7 @@ export class ApiClient {
         // Remove JSON content-type so browser sets multipart boundary
         headers = this._sanitizeForMultipart(headers);
         res = await fetch(url, { method: 'POST', headers, body: fd, signal: controller.signal });
-        // Peek and optionally retry with JSON if the server returned a generic fallback
+        // Inspect and optionally retry with JSON if the server rejects multipart or demands different keys
         let contentType0 = res.headers.get('content-type') || '';
         let j0 = null;
         if (contentType0.includes('application/json')) {
@@ -111,7 +111,12 @@ export class ApiClient {
         } else {
           try { await res.clone().text(); } catch {}
         }
-        if (this._shouldRetryGroundingDino(j0, p)) {
+        const shouldRetryJson = (
+          this._shouldRetryGroundingDino(j0, p)
+          || (!res.ok && [400, 401, 403, 404, 405, 406, 415, 422].includes(res.status))
+          || (j0 && Array.isArray(j0.detail) && j0.detail.some(d => String(d?.loc?.join('.')).includes('file') || String(d?.loc?.join('.')).includes('prompt')))
+        );
+        if (shouldRetryJson) {
           // Retry with JSON body including broader keys (may trigger preflight but improves compatibility)
           const jsonBody = buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64: b64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold });
           const jsonHeaders = { 'Content-Type': 'application/json' };
