@@ -81,6 +81,7 @@ export class BatchRunner {
           modelId: m.id,
           modelDisplayName: m.model,
           color: m.color,
+          requestPrompt: (m.endpointType === 'groundingdino') ? (dinoPrompt || '') : prompt,
           status,
           latencyMs,
           rawText,

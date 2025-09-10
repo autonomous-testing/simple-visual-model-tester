@@ -45,7 +45,7 @@ export class ResultsTable {
   _columns() {
     return [
       'batchId','batchSeq','runId','runLabel','timestampIso',
-      'imageName','imageW','imageH','prompt',
+      'imageName','imageW','imageH','prompt','modelPrompt',
       'modelDisplayName','baseURL','model',
       'detectionType','x','y','width','height','confidence',
       'latencyMs','status','error','rawTextShort'
@@ -99,6 +99,7 @@ export class ResultsTable {
       imageW: runMeta.imageW,
       imageH: runMeta.imageH,
       prompt: runMeta.prompt,
+      modelPrompt: r.requestPrompt || '',
 
       modelDisplayName: r.modelDisplayName,
       baseURL: this.historyStore.snapshotBaseURL(runMeta, r.modelDisplayName),
