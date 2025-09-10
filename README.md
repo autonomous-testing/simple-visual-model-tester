@@ -4,26 +4,17 @@ Browser‑only MVP to send one prompt + one image to multiple OpenAI‑compatibl
 
 ## Quick Start
 
-1. Host the `app/` folder as static files (no server logic required). Any simple HTTP server works, e.g.:
+1. Open `app/index.html` directly in a modern desktop browser or host the `app/` folder as static files (e.g., GitHub Pages) and open the published URL.
 
-```bash
-# Python
-python3 -m http.server -d app 8080
-# or
-npx http-server app -p 8080
-```
+2. In **Models** tab, set **Base URL**, **API Key**, **Endpoint Type** (`chat` or `responses`) and **Model** (e.g., `gpt-4o-mini`). Click **Save to Browser**.
 
-2. Open `http://localhost:8080` in a modern desktop browser (Chrome/Edge/Safari/Firefox).
+3. **Choose Image** → **Load Selected Image**, enter **Prompt**, set **Iterations** if needed, click **Run on Enabled Models**.
 
-3. In **Models** tab, set **Base URL**, **API Key**, **Endpoint Type** (`chat` or `responses`) and **Model** (e.g., `gpt-4o-mini`). Click **Save to Browser**.
-
-4. **Choose Image** → **Load Selected Image**, enter **Prompt**, set **Iterations** if needed, click **Run on Enabled Models**.
-
-5. Inspect overlay + logs. Use **Results** tab to **Export CSV** for *This run / This batch / All runs*.
+4. Inspect overlay + logs. Use **Results** tab to **Export CSV** for *This run / This batch / All runs*.
 
 ## Notes
 
-- **CORS**: The target API must allow browser requests from your SPA origin. For production, place a tiny token‑signing proxy and lock CORS to your domain.
+- **CORS**: The target API must allow browser requests from your origin (e.g., your GitHub Pages domain) for model calls to succeed.
 - **Security**: API keys live in the browser (localStorage). Do not ship this as‑is to untrusted users.
 - **Persistence**: Metadata in `localStorage`, payloads (runs + image blobs) in IndexedDB. History survives reload.
 - **Response contract**: The app instructs models to return **JSON only** with:
@@ -38,48 +29,9 @@ npx http-server app -p 8080
   }
   ```
 
-### GroundingDINO Support (Optional)
+### GroundingDINO Compatibility
 
-Besides LLM providers, the app can call a local GroundingDINO server for phrase‑grounded object detection.
-
-- Add a model and choose Endpoint Type: `GroundingDINO`.
-- Set Base URL to your detection endpoint (example server below serves `/groundingdino/detect`).
-- Adjust `Box thr` and `Text thr` as desired.
-
-Example server is included in `server/`:
-
-1) Create venv and install requirements, then install GroundingDINO from source.
-2) Set `GROUNDING_DINO_CONFIG_PATH` and `GROUNDING_DINO_WEIGHTS_PATH` env vars.
-3) Run: `uvicorn server.groundingdino_api:app --port 8001`
-4) In the app, set Base URL to `http://localhost:8001/groundingdino/detect` and test.
-
-The SPA adapts common GroundingDINO server responses into its canonical JSON for overlay rendering and CSV exports. It supports:
-- Pixel-space detections: `{ width, height, detections: [{ x,y,width,height,confidence }] }`
-- Label Studio–style results like your remote service returns: `{ results: [{ result: [{ type: 'rectanglelabels', value: { x,y,width,height,score } }], score }] }` with normalized [0..1] coordinates (scaled to pixels using the input image size).
-
-Remote example (already running):
-- Endpoint: `https://dino.d2.wopee.io/predict`
-- Configure a model with:
-  - Endpoint Type: `GroundingDINO`
-  - Base URL: `https://dino.d2.wopee.io/predict`
-  - Model (label): e.g. `GroundingDINO`
-  - Box thr: `0.35` • Text thr: `0.25`
-
-The client uploads the image as multipart/form-data with fields `file`, `prompt`, `box_threshold`, `text_threshold`, matching this curl you used:
-
-```
-curl -i -X POST "https://dino.d2.wopee.io/predict" \
-  -F "file=@Downloads/screenshot.png" \
-  -F "prompt=button" \
-  -F "box_threshold=0.35" \
-  -F "text_threshold=0.25"
-```
-
-Best-practice tips for GroundingDINO prompts
-- Keep it short and specific: e.g., `"button"`, `"checkbox"`, `"search icon"`.
-- Use lowercase; for multiple classes, separate with a dot: `"button . icon . logo ."`.
-- Tune thresholds: start with Box=0.35, Text=0.25 and adjust if missing/over-detections occur.
-- Compatibility: the client now sends common prompt field synonyms (`prompt`, `text`, `caption`, `text_prompt`, `query`, plus `phrases`/`classes`) and also accepts pixel or normalized/percent coordinates in responses.
+- You can configure a model with Endpoint Type: `GroundingDINO` and set the Base URL of an external detection endpoint that allows browser requests (CORS). The client adapts common response shapes into the app’s canonical JSON for overlay/CSV.
 
 ## Browser Support
 

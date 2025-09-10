@@ -18,7 +18,6 @@ Constraints: Lightweight SPA; no heavy frameworks; front-end only (MVP) with loc
 	7.	Iterative Runs (Batch): I can set Iterations (1–50). The app runs sequentially, creating a new run after each previous run completes, until the desired count is met (or canceled). All runs are linked by a Batch with sequential numbering.
 
 1.2 Out of Scope (MVP)
-	•	Server-side proxy for keys (recommended for production, not required for MVP).
 	•	Authentication / multi-user accounts.
 	•	Ground-truth scoring.
 	•	Pan/zoom overlay; ghost overlays across runs.
@@ -436,7 +435,6 @@ async function runBatch({ iterations, imageBlob, prompt, enabledModels, interRun
 9. Security Notes (Browser-Only MVP)
 	•	API keys reside in the browser (localStorage). This is not secure for production.
 	•	Never log or persist Authorization headers.
-	•	Recommended production pattern (post-MVP): short-lived tokens via a minimal signing proxy; CORS allowed specifically for this SPA origin; quotas and scopes enforced.
 
 ⸻
 
@@ -549,7 +547,6 @@ putRunData(runId, data); putImage(hash, blob); getImage(hash);
 	•	Pan/zoom overlay; compare with previous run “ghost overlay”.
 	•	Batch summary dashboards per model (mean, stddev, % invalid/timeout).
 	•	Ground-truth import and automatic scoring.
-	•	Minimal token-signing proxy for production security.
 
 ⸻
 
