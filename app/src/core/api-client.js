@@ -80,30 +80,21 @@ export class ApiClient {
       attemptKind = 'single';
       if (endpointType === 'groundingdino') {
         // For GroundingDINO servers that expect multipart/form-data
-        // Build FormData: file, prompt, thresholds. Include common synonyms to maximize compatibility.
+        // Send exactly the fields the reference curl uses: file, prompt, thresholds
         const fd = new FormData();
         const mime = imageBlob?.type || 'image/png';
         const ext = mime.includes('jpeg') ? 'jpg' : (mime.split('/')[1] || 'png');
         const fname = `image.${ext}`;
         const p = String(prompt ?? '');
-        // Append as file field named 'file' (common), and also 'image' to support other servers.
-        fd.append('file', imageBlob, fname);
-        try { fd.append('image', imageBlob, fname); } catch {}
-        // Prompt field synonyms used by various GroundingDINO servers
+        const filePart = (imageBlob instanceof File) ? imageBlob : new File([imageBlob], fname, { type: mime });
+        fd.append('file', filePart, fname);
         fd.append('prompt', p);
-        try { fd.append('text', p); } catch {}
-        try { fd.append('caption', p); } catch {}
-        try { fd.append('text_prompt', p); } catch {}
-        try { fd.append('query', p); } catch {}
-        // Some servers accept an array; sending a string is generally ignored by others
-        try { fd.append('phrases', p); } catch {}
-        try { fd.append('classes', p); } catch {}
         if (dinoBoxThreshold != null) fd.append('box_threshold', String(dinoBoxThreshold));
         if (dinoTextThreshold != null) fd.append('text_threshold', String(dinoTextThreshold));
         // Remove JSON content-type so browser sets multipart boundary
         headers = this._sanitizeForMultipart(headers);
         res = await fetch(url, { method: 'POST', headers, body: fd, signal: controller.signal });
-        // Inspect and optionally retry with JSON if the server rejects multipart or demands different keys
+        // If server rejects multipart with generic client/server errors (not validation for file/prompt), retry JSON
         let contentType0 = res.headers.get('content-type') || '';
         let j0 = null;
         if (contentType0.includes('application/json')) {
@@ -111,13 +102,12 @@ export class ApiClient {
         } else {
           try { await res.clone().text(); } catch {}
         }
-        const shouldRetryJson = (
-          this._shouldRetryGroundingDino(j0, p)
-          || (!res.ok && [400, 401, 403, 404, 405, 406, 415, 422].includes(res.status))
-          || (j0 && Array.isArray(j0.detail) && j0.detail.some(d => String(d?.loc?.join('.')).includes('file') || String(d?.loc?.join('.')).includes('prompt')))
-        );
+        const missingFileOrPrompt = !!(j0 && Array.isArray(j0.detail) && j0.detail.some(d => {
+          const loc = String(d?.loc?.join('.'));
+          return loc.includes('file') || loc.includes('prompt');
+        }));
+        const shouldRetryJson = (!res.ok && [400, 401, 403, 404, 405, 406, 415].includes(res.status));
         if (shouldRetryJson) {
-          // Retry with JSON body including broader keys (may trigger preflight but improves compatibility)
           const jsonBody = buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64: b64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold });
           const jsonHeaders = { 'Content-Type': 'application/json' };
           const controller2 = new AbortController();
@@ -126,6 +116,8 @@ export class ApiClient {
           clearTimeout(to2);
           res = res2;
           attemptKind = 'retry-json';
+        } else if (!res.ok && res.status === 422 && missingFileOrPrompt) {
+          // Keep the original error; do not switch to JSON because server expects multipart
         }
       } else {
         res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
