@@ -330,32 +330,11 @@ export class ApiClient {
   }
 
   _shouldRetryGroundingDino(serverResponse, userPrompt) {
-    try {
-      const p = String(userPrompt || '').trim().toLowerCase();
-      if (!p) return false;
-      const mv = String(serverResponse?.model_version || '');
-      if (/fallback/i.test(mv)) return true;
-      // Label Studio-like fallback: value.text === 'object' and boxes have zero area
-      if (Array.isArray(serverResponse?.results)) {
-        let any = false;
-        let allZero = true;
-        let allObject = true;
-        for (const group of serverResponse.results) {
-          const arr = Array.isArray(group?.result) ? group.result : [];
-          for (const item of arr) {
-            if (item?.type !== 'rectanglelabels') continue;
-            const v = item?.value || {};
-            any = true;
-            const w = Number(v.width || 0);
-            const h = Number(v.height || 0);
-            if (w > 0 && h > 0) allZero = false;
-            const txt = String(v.text || '').trim().toLowerCase();
-            if (txt !== 'object') allObject = false;
-          }
-        }
-        if (any && (allZero || allObject)) return true;
-      }
-    } catch {}
+    // Previous heuristics were too aggressive and retried JSON even on valid results
+    // (e.g., model_version containing "fallback" or zero-width boxes from some servers).
+    // Keep conservative: do not trigger heuristic retries here.
+    // We already retry JSON on clear client/server errors in callModel.
+    void serverResponse; void userPrompt;
     return false;
   }
 
