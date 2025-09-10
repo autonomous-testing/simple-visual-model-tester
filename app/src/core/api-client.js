@@ -76,6 +76,7 @@ export class ApiClient {
     let rawText = '';
     try {
       let res;
+      let attemptKind = 'single';
       if (endpointType === 'groundingdino') {
         // For GroundingDINO servers that expect multipart/form-data
         // Build FormData: file, prompt, thresholds. Include common synonyms to maximize compatibility.
@@ -101,6 +102,25 @@ export class ApiClient {
         // Remove JSON content-type so browser sets multipart boundary
         headers = this._sanitizeForMultipart(headers);
         res = await fetch(url, { method: 'POST', headers, body: fd, signal: controller.signal });
+        // Peek and optionally retry with JSON if the server returned a generic fallback
+        let contentType0 = res.headers.get('content-type') || '';
+        let j0 = null;
+        if (contentType0.includes('application/json')) {
+          try { j0 = await res.clone().json(); } catch {}
+        } else {
+          try { await res.clone().text(); } catch {}
+        }
+        if (this._shouldRetryGroundingDino(j0, p)) {
+          // Retry with JSON body including broader keys (may trigger preflight but improves compatibility)
+          const jsonBody = buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64: b64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold });
+          const jsonHeaders = { 'Content-Type': 'application/json' };
+          const controller2 = new AbortController();
+          const to2 = setTimeout(() => controller2.abort('timeout'), timeoutMs);
+          const res2 = await fetch(url, { method: 'POST', headers: jsonHeaders, body: JSON.stringify(jsonBody), signal: controller2.signal });
+          clearTimeout(to2);
+          res = res2;
+          attemptKind = 'retry-json';
+        }
       } else {
         res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
       }
@@ -177,7 +197,7 @@ export class ApiClient {
         url,
         headers: this._sanitizeHeaders(headers),
         bodyPreview: (endpointType === 'groundingdino')
-          ? 'multipart/form-data (file, prompt, thresholds)'
+          ? (attemptKind === 'retry-json' ? 'multipart (initial) -> retried JSON (image+prompt+thresholds)' : 'multipart/form-data (file, prompt, thresholds)')
           : truncate(JSON.stringify(body), 1200)
       };
       const log = {
@@ -195,7 +215,7 @@ export class ApiClient {
         url,
         headers: this._sanitizeHeaders(headers),
         bodyPreview: (endpointType === 'groundingdino')
-          ? 'multipart/form-data (file, prompt, thresholds)'
+          ? (attemptKind === 'retry-json' ? 'multipart (initial) -> retried JSON (image+prompt+thresholds)' : 'multipart/form-data (file, prompt, thresholds)')
           : truncate(JSON.stringify(body), 1200)
       };
       const log = {
@@ -301,6 +321,36 @@ export class ApiClient {
     }
     // Fallback
     return JSON.stringify(j);
+  }
+
+  _shouldRetryGroundingDino(serverResponse, userPrompt) {
+    try {
+      const p = String(userPrompt || '').trim().toLowerCase();
+      if (!p) return false;
+      const mv = String(serverResponse?.model_version || '');
+      if (/fallback/i.test(mv)) return true;
+      // Label Studio-like fallback: value.text === 'object' and boxes have zero area
+      if (Array.isArray(serverResponse?.results)) {
+        let any = false;
+        let allZero = true;
+        let allObject = true;
+        for (const group of serverResponse.results) {
+          const arr = Array.isArray(group?.result) ? group.result : [];
+          for (const item of arr) {
+            if (item?.type !== 'rectanglelabels') continue;
+            const v = item?.value || {};
+            any = true;
+            const w = Number(v.width || 0);
+            const h = Number(v.height || 0);
+            if (w > 0 && h > 0) allZero = false;
+            const txt = String(v.text || '').trim().toLowerCase();
+            if (txt !== 'object') allObject = false;
+          }
+        }
+        if (any && (allZero || allObject)) return true;
+      }
+    } catch {}
+    return false;
   }
 
   _adaptGroundingDinoToJson(serverResponse, imageW, imageH) {
