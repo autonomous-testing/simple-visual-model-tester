@@ -339,6 +339,7 @@ export class ApiClient {
       const h = Number(serverResponse.height || imageH || 0);
 
       const boxes = [];
+      const points = [];
 
       // Shape A: { results: [ { result: [ { type:'rectanglelabels', value: { x,y,width,height,score,text } } ], score } ] }
       if (Array.isArray(serverResponse.results)) {
@@ -357,17 +358,23 @@ export class ApiClient {
               const isFraction = vals.every(val => val <= 1);
               const sx = isFraction ? w : 0.01 * w;
               const sy = isFraction ? h : 0.01 * h;
-              const bx = Math.max(0, Math.round(vx * sx));
-              const by = Math.max(0, Math.round(vy * sy));
-              const bw = Math.round(vw * sx);
-              const bh = Math.round(vh * sy);
-              // Ignore degenerate boxes per guidance
-              if (bw <= 0 || bh <= 0) continue;
-              // Clamp to image bounds
-              const bwClamped = Math.max(0, Math.min(bw, w - bx));
-              const bhClamped = Math.max(0, Math.min(bh, h - by));
+              // Compute edges with floor/ceil to preserve tiny positive boxes
+              const fx1 = vx * sx, fy1 = vy * sy;
+              const fx2 = (vx + vw) * sx, fy2 = (vy + vh) * sy;
+              let x1 = Math.max(0, Math.floor(fx1));
+              let y1 = Math.max(0, Math.floor(fy1));
+              let x2 = Math.min(w, Math.ceil(fx2));
+              let y2 = Math.min(h, Math.ceil(fy2));
+              let bw = Math.max(0, x2 - x1);
+              let bh = Math.max(0, y2 - y1);
+              const bx = x1, by = y1;
+              // If degenerate, record a point candidate at top-left
+              if (bw <= 0 || bh <= 0) {
+                points.push({ x: Math.round(vx * sx), y: Math.round(vy * sy), confidence: Number(v.score != null ? v.score : (group?.score ?? 0)) || 0 });
+                continue;
+              }
               const conf = Number(v.score != null ? v.score : (group?.score ?? 0));
-              boxes.push({ x: bx, y: by, width: bwClamped, height: bhClamped, confidence: Math.max(0, Math.min(1, conf || 0)) });
+              boxes.push({ x: bx, y: by, width: bw, height: bh, confidence: Math.max(0, Math.min(1, conf || 0)) });
             }
           }
         }
@@ -397,10 +404,18 @@ export class ApiClient {
           const isFraction = vals.every(val => val <= 1);
           const sx = isFraction ? w : 0.01 * w;
           const sy = isFraction ? h : 0.01 * h;
-          const px1 = Math.round(x1 * sx), py1 = Math.round(y1 * sy);
-          const px2 = Math.round(x2 * sx), py2 = Math.round(y2 * sy);
+          // Compute edges with floor/ceil to preserve tiny positive boxes
+          const fx1 = x1 * sx, fy1 = y1 * sy;
+          const fx2 = x2 * sx, fy2 = y2 * sy;
+          const px1 = Math.max(0, Math.floor(fx1));
+          const py1 = Math.max(0, Math.floor(fy1));
+          const px2 = Math.min(w, Math.ceil(fx2));
+          const py2 = Math.min(h, Math.ceil(fy2));
           const bw = Math.max(0, px2 - px1), bh = Math.max(0, py2 - py1);
-          if (bw <= 0 || bh <= 0) continue;
+          if (bw <= 0 || bh <= 0) {
+            points.push({ x: Math.round(x1 * sx), y: Math.round(y1 * sy), confidence: Math.max(0, Math.min(1, Number(scores[i] || 0))) });
+            continue;
+          }
           const conf = Math.max(0, Math.min(1, Number(scores[i] || 0)));
           boxes.push({ x: px1, y: py1, width: bw, height: bh, confidence: conf });
         }
@@ -423,6 +438,12 @@ export class ApiClient {
         others = ordered.slice(1).map(b => ((b.width || 0) > 0 && (b.height || 0) > 0)
           ? ({ type: 'bbox', ...b })
           : ({ type: 'point', x: Math.round(b.x), y: Math.round(b.y), confidence: b.confidence }));
+      } else if (points.length > 0) {
+        // Use best point candidate from degenerate detections
+        points.sort((a,b) => (b.confidence || 0) - (a.confidence || 0));
+        const p0 = points[0];
+        primary = { type: 'point', x: Math.max(0, Math.min(w, Math.round(p0.x))), y: Math.max(0, Math.min(h, Math.round(p0.y))), confidence: p0.confidence };
+        others = points.slice(1).map(p => ({ type:'point', x: Math.max(0, Math.min(w, Math.round(p.x))), y: Math.max(0, Math.min(h, Math.round(p.y))), confidence: p.confidence }));
       } else {
         // Fallback to center point guess
         primary = { type: 'point', x: Math.round(w / 2), y: Math.round(h / 2), confidence: 0.1 };
