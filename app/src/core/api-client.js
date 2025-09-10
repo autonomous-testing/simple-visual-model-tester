@@ -356,10 +356,20 @@ export class ApiClient {
               const usePercent = [vx, vy, vw, vh].some(val => Math.abs(val) > 1);
               const sx = usePercent ? 0.01 * w : w;
               const sy = usePercent ? 0.01 * h : h;
-              const bx = Math.round(vx * sx);
-              const by = Math.round(vy * sy);
-              const bw = Math.round(vw * sx);
-              const bh = Math.round(vh * sy);
+              const bxFloat = vx * sx;
+              const byFloat = vy * sy;
+              const bwFloat = vw * sx;
+              const bhFloat = vh * sy;
+              let bx = Math.max(0, Math.floor(bxFloat));
+              let by = Math.max(0, Math.floor(byFloat));
+              let bw = Math.round(bwFloat);
+              let bh = Math.round(bhFloat);
+              // Preserve tiny but positive boxes by enforcing 1px minimum when source width/height > 0
+              if (vw > 0 && bw === 0) bw = 1;
+              if (vh > 0 && bh === 0) bh = 1;
+              // Clamp to image bounds
+              if (bx + bw > w) bw = Math.max(0, w - bx);
+              if (by + bh > h) bh = Math.max(0, h - by);
               const conf = Number(v.score != null ? v.score : (group?.score ?? 0));
               // Some responses might provide width/height=0 (point-like). Filter non-positive boxes later.
               boxes.push({ x: bx, y: by, width: bw, height: bh, confidence: Math.max(0, Math.min(1, conf || 0)) });
@@ -393,7 +403,10 @@ export class ApiClient {
           const sy = usePercent ? 0.01 * h : h;
           const px1 = Math.round(x1 * sx), py1 = Math.round(y1 * sy);
           const px2 = Math.round(x2 * sx), py2 = Math.round(y2 * sy);
-          const bw = Math.max(0, px2 - px1), bh = Math.max(0, py2 - py1);
+          let bw = Math.max(0, px2 - px1), bh = Math.max(0, py2 - py1);
+          // Keep tiny but positive boxes visible
+          if ((px2 - px1) > 0 && bw === 0) bw = 1;
+          if ((py2 - py1) > 0 && bh === 0) bh = 1;
           const conf = Math.max(0, Math.min(1, Number(scores[i] || 0)));
           boxes.push({ x: px1, y: py1, width: bw, height: bh, confidence: conf });
         }
@@ -406,16 +419,18 @@ export class ApiClient {
 
       let primary, others = [];
       if (ordered.length > 0) {
-        // If top box lacks area, fallback to point primary
+        // If top box lacks area, fallback to point primary (use center when possible)
         const top = ordered[0];
         if ((top.width || 0) > 0 && (top.height || 0) > 0) {
           primary = { type: 'bbox', ...top };
         } else {
-          primary = { type: 'point', x: top.x, y: top.y, confidence: top.confidence };
+          const cx = Math.round(top.x + (Math.max(1, top.width || 0) / 2));
+          const cy = Math.round(top.y + (Math.max(1, top.height || 0) / 2));
+          primary = { type: 'point', x: cx, y: cy, confidence: top.confidence };
         }
         others = ordered.slice(1).map(b => ((b.width || 0) > 0 && (b.height || 0) > 0)
           ? ({ type: 'bbox', ...b })
-          : ({ type: 'point', x: b.x, y: b.y, confidence: b.confidence }));
+          : ({ type: 'point', x: Math.round(b.x + (Math.max(1, b.width || 0) / 2)), y: Math.round(b.y + (Math.max(1, b.height || 0) / 2)), confidence: b.confidence }));
       } else {
         // Fallback to center point guess
         primary = { type: 'point', x: Math.round(w / 2), y: Math.round(h / 2), confidence: 0.1 };
