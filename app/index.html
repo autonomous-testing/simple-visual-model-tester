@@ -13,8 +13,11 @@
   </header>
 
   <main class="layout" role="main">
-    <div id="corsWarning" style="display:none; margin:8px 8px 0 8px; padding:8px; border:1px solid #e9b34f; background:#fff8e6; color:#8a6100; border-radius:6px;">
-      Running from file:// has origin "null" and many providers block it. To avoid CORS issues, open this app from a permitted origin (e.g., your GitHub Pages URL).
+    <div id="corsWarning" role="alert" aria-live="polite">
+      <span>
+        Running from file:// has origin "null" and many providers block it. To avoid CORS issues, open this app from a permitted origin (e.g., your GitHub Pages URL).
+      </span>
+      <button id="corsClose" type="button" class="banner-close" aria-label="Dismiss CORS warning" title="Dismiss">×</button>
     </div>
     <!-- Inputs Panel (Left) -->
     <section class="panel inputs" aria-label="Inputs panel">

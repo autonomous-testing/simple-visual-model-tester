@@ -64,6 +64,7 @@ const historyTable = new HistoryTable(historyTableEl, historyStore);
 const historyDialog = new HistoryDialog(document.getElementById('historyDialog'), historyStore, overlay, resultsTable, imageLoader);
 const storageRoot = document.getElementById('sidebar-storage');
 const corsWarning = document.getElementById('corsWarning');
+const corsClose = document.getElementById('corsClose');
 
 let activeBatch = null;
 
@@ -78,9 +79,17 @@ renderPromptTemplateTab();
 // Show CORS warning if opened from file:// to avoid Origin null
 try {
   if (location.protocol === 'file:') {
-    if (corsWarning) corsWarning.style.display = 'block';
+    const hidden = typeof localStorage !== 'undefined' && localStorage.getItem('hideCorsWarning') === '1';
+    if (corsWarning && !hidden) corsWarning.style.display = 'block';
   }
 } catch {}
+
+if (corsClose && corsWarning) {
+  corsClose.addEventListener('click', () => {
+    corsWarning.style.display = 'none';
+    try { localStorage.setItem('hideCorsWarning', '1'); } catch {}
+  });
+}
 
 function setBadge(text) {
   badge.textContent = text;
