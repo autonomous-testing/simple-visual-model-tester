@@ -12,6 +12,17 @@ Browser‑only MVP to send one prompt + one image to multiple OpenAI‑compatibl
 
 4. Inspect overlay + logs. Use **Results** tab to **Export CSV** for *This run / This batch / All runs*.
 
+### CSV Columns
+
+The export includes these columns (order is stable):
+
+`batchId, batchSeq, runId, runLabel, timestampIso, imageName, imageW, imageH, prompt, modelPrompt, modelDisplayName, baseURL, model, detectionType, x, y, width, height, confidence, latencyMs, status, error, rawTextShort, rawTextCanonical, rawTextFull`
+
+- `modelPrompt`: the actual prompt sent to the model (for DINO, the DINO Prompt).
+- `rawTextShort`: first 200 characters of the canonical JSON used for overlay.
+- `rawTextCanonical`: full canonical JSON used for overlay/CSV.
+- `rawTextFull`: full raw server JSON (sanitized), when available.
+
 ## Notes
 
 - **CORS**: The target API must allow browser requests from your origin (e.g., your GitHub Pages domain) for model calls to succeed.
@@ -32,6 +43,7 @@ Browser‑only MVP to send one prompt + one image to multiple OpenAI‑compatibl
 ### GroundingDINO Compatibility
 
 - You can configure a model with Endpoint Type: `GroundingDINO` and set the Base URL of an external detection endpoint that allows browser requests (CORS). The client adapts common response shapes into the app’s canonical JSON for overlay/CSV.
+- Adapter rules: If all of `x,y,width,height` are ≤ 1 they are treated as normalized fractions; otherwise as percentages (0–100). Tiny positive boxes are preserved using floor/ceil edges; zero‑area boxes become point candidates.
 
 ## Browser Support
 

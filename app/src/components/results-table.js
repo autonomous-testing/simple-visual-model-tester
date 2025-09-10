@@ -48,7 +48,7 @@ export class ResultsTable {
       'imageName','imageW','imageH','prompt','modelPrompt',
       'modelDisplayName','baseURL','model',
       'detectionType','x','y','width','height','confidence',
-      'latencyMs','status','error','rawTextShort'
+      'latencyMs','status','error','rawTextShort','rawTextCanonical','rawTextFull'
     ];
   }
 
@@ -116,6 +116,7 @@ export class ResultsTable {
       status: r.status,
       error: r.errorMessage || '',
       rawTextShort: (r.rawText || '').slice(0, 200),
+      rawTextCanonical: (r.rawText || ''),
       rawTextFull: (r.rawFull || r.rawText || '')
     };
   }

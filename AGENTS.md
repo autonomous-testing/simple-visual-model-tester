@@ -34,7 +34,8 @@ Data flow (happy path): UI → BatchRunner → ApiClient (→ Provider builder) 
 ## Contracts You Must Preserve
 
 - Model response JSON (canonical): coordinate_system=pixel, origin=top-left, image_size{w,h}, primary(point|bbox), others[], optional notes. Parser clamps/validates.
-- CSV columns and semantics are stable for downstream analysis.
+- CSV columns and semantics are stable for downstream analysis. Current columns:
+  `batchId,batchSeq,runId,runLabel,timestampIso,imageName,imageW,imageH,prompt,modelPrompt,modelDisplayName,baseURL,model,detectionType,x,y,width,height,confidence,latencyMs,status,error,rawTextShort,rawTextCanonical,rawTextFull`
 - Logs must be sanitized (no Authorization/api-key) and stored per model per run.
 - Local persistence: indices in localStorage; blobs/run payloads in IndexedDB.
 
@@ -46,8 +47,7 @@ Data flow (happy path): UI → BatchRunner → ApiClient (→ Provider builder) 
   - Azure: `api-key` header and optional `api-version` query param.
   - Responses API: `input[]` with `input_text`/`input_image`, `max_output_tokens` at top level.
 - `api-client.js` extracts text from varied response shapes and adapts GroundingDINO responses into canonical JSON for overlay/CSV.
-- GroundingDINO: Prefer multipart form-data to avoid CORS preflight; retries JSON as fallback; accepts multiple prompt key synonyms.
-  - Uses the global “DINO Prompt” (input below the main Prompt) for the text query and does not use the system prompt. All GroundingDINO models share this prompt.
+- GroundingDINO: Prefer multipart form-data to avoid CORS preflight; retries JSON as fallback. Adapter rules: when LS-like `rectanglelabels` are returned, treat `x,y,width,height` as fractions if all ≤ 1, else as percentages (0–100). Preserve tiny positive boxes via floor/ceil on edges; record points for zero‑area boxes. Uses the global “DINO Prompt” (input below the main Prompt) and does not use the system prompt. All GroundingDINO models share this prompt.
 
 ## Common Tasks (Step‑by‑Step)
 
