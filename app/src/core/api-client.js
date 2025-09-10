@@ -348,31 +348,26 @@ export class ApiClient {
             const v = item?.value || {};
             if (item?.type === 'rectanglelabels' && v) {
               // Some servers return normalized [0..1]; others use percents [0..100].
-              // Detect heuristically: if any value > 1, treat as percent.
+              // Detect fractions when all values are <= 1. Otherwise assume percents.
               const vx = Number(v.x || 0);
               const vy = Number(v.y || 0);
               const vw = Number(v.width || 0);
               const vh = Number(v.height || 0);
-              const usePercent = [vx, vy, vw, vh].some(val => Math.abs(val) > 1);
-              const sx = usePercent ? 0.01 * w : w;
-              const sy = usePercent ? 0.01 * h : h;
-              const bxFloat = vx * sx;
-              const byFloat = vy * sy;
-              const bwFloat = vw * sx;
-              const bhFloat = vh * sy;
-              let bx = Math.max(0, Math.floor(bxFloat));
-              let by = Math.max(0, Math.floor(byFloat));
-              let bw = Math.round(bwFloat);
-              let bh = Math.round(bhFloat);
-              // Preserve tiny but positive boxes by enforcing 1px minimum when source width/height > 0
-              if (vw > 0 && bw === 0) bw = 1;
-              if (vh > 0 && bh === 0) bh = 1;
+              const vals = [vx, vy, vw, vh].map(a => Math.abs(a));
+              const isFraction = vals.every(val => val <= 1);
+              const sx = isFraction ? w : 0.01 * w;
+              const sy = isFraction ? h : 0.01 * h;
+              const bx = Math.max(0, Math.round(vx * sx));
+              const by = Math.max(0, Math.round(vy * sy));
+              const bw = Math.round(vw * sx);
+              const bh = Math.round(vh * sy);
+              // Ignore degenerate boxes per guidance
+              if (bw <= 0 || bh <= 0) continue;
               // Clamp to image bounds
-              if (bx + bw > w) bw = Math.max(0, w - bx);
-              if (by + bh > h) bh = Math.max(0, h - by);
+              const bwClamped = Math.max(0, Math.min(bw, w - bx));
+              const bhClamped = Math.max(0, Math.min(bh, h - by));
               const conf = Number(v.score != null ? v.score : (group?.score ?? 0));
-              // Some responses might provide width/height=0 (point-like). Filter non-positive boxes later.
-              boxes.push({ x: bx, y: by, width: bw, height: bh, confidence: Math.max(0, Math.min(1, conf || 0)) });
+              boxes.push({ x: bx, y: by, width: bwClamped, height: bhClamped, confidence: Math.max(0, Math.min(1, conf || 0)) });
             }
           }
         }
@@ -398,15 +393,14 @@ export class ApiClient {
         for (let i = 0; i < boxesArr.length; i++) {
           const b = boxesArr[i] || [];
           const x1 = Number(b[0] || 0), y1 = Number(b[1] || 0), x2 = Number(b[2] || 0), y2 = Number(b[3] || 0);
-          const usePercent = [x1, y1, x2, y2].some(val => Math.abs(val) > 1);
-          const sx = usePercent ? 0.01 * w : w;
-          const sy = usePercent ? 0.01 * h : h;
+          const vals = [x1, y1, x2, y2].map(a => Math.abs(a));
+          const isFraction = vals.every(val => val <= 1);
+          const sx = isFraction ? w : 0.01 * w;
+          const sy = isFraction ? h : 0.01 * h;
           const px1 = Math.round(x1 * sx), py1 = Math.round(y1 * sy);
           const px2 = Math.round(x2 * sx), py2 = Math.round(y2 * sy);
-          let bw = Math.max(0, px2 - px1), bh = Math.max(0, py2 - py1);
-          // Keep tiny but positive boxes visible
-          if ((px2 - px1) > 0 && bw === 0) bw = 1;
-          if ((py2 - py1) > 0 && bh === 0) bh = 1;
+          const bw = Math.max(0, px2 - px1), bh = Math.max(0, py2 - py1);
+          if (bw <= 0 || bh <= 0) continue;
           const conf = Math.max(0, Math.min(1, Number(scores[i] || 0)));
           boxes.push({ x: px1, y: py1, width: bw, height: bh, confidence: conf });
         }
@@ -419,18 +413,16 @@ export class ApiClient {
 
       let primary, others = [];
       if (ordered.length > 0) {
-        // If top box lacks area, fallback to point primary (use center when possible)
+        // If top box somehow lacks area (should be filtered), fallback to top-left point
         const top = ordered[0];
         if ((top.width || 0) > 0 && (top.height || 0) > 0) {
           primary = { type: 'bbox', ...top };
         } else {
-          const cx = Math.round(top.x + (Math.max(1, top.width || 0) / 2));
-          const cy = Math.round(top.y + (Math.max(1, top.height || 0) / 2));
-          primary = { type: 'point', x: cx, y: cy, confidence: top.confidence };
+          primary = { type: 'point', x: Math.round(top.x), y: Math.round(top.y), confidence: top.confidence };
         }
         others = ordered.slice(1).map(b => ((b.width || 0) > 0 && (b.height || 0) > 0)
           ? ({ type: 'bbox', ...b })
-          : ({ type: 'point', x: Math.round(b.x + (Math.max(1, b.width || 0) / 2)), y: Math.round(b.y + (Math.max(1, b.height || 0) / 2)), confidence: b.confidence }));
+          : ({ type: 'point', x: Math.round(b.x), y: Math.round(b.y), confidence: b.confidence }));
       } else {
         // Fallback to center point guess
         primary = { type: 'point', x: Math.round(w / 2), y: Math.round(h / 2), confidence: 0.1 };
