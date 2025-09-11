@@ -347,6 +347,43 @@ export class ApiClient {
       const w = Number(serverResponse.width || imageW || 0);
       const h = Number(serverResponse.height || imageH || 0);
 
+      // Minimal-pass adapter: if the server already returns pixel-space detections,
+      // forward them with minimal transformation (round only, keep order).
+      if (Array.isArray(serverResponse?.detections) && serverResponse.detections.length > 0) {
+        const toBox = (d) => {
+          const src = (d && d.bbox) ? d.bbox : d || {};
+          const x = Number(src.x);
+          const y = Number(src.y);
+          const width = Number(src.width);
+          const height = Number(src.height);
+          const conf = (d && d.score != null) ? Number(d.score)
+            : (d && d.confidence != null) ? Number(d.confidence)
+            : 0;
+          return {
+            x: Math.max(0, Number.isFinite(x) ? x : 0),
+            y: Math.max(0, Number.isFinite(y) ? y : 0),
+            width: Math.max(0, Number.isFinite(width) ? width : 0),
+            height: Math.max(0, Number.isFinite(height) ? height : 0),
+            confidence: Math.max(0, Math.min(1, conf || 0))
+          };
+        };
+        const mapped = serverResponse.detections
+          .map(toBox)
+          .filter(b => Number.isFinite(b.x) && Number.isFinite(b.y));
+        // If nothing valid after mapping, fall through to other shapes.
+        if (mapped.length > 0) {
+          const primary = { type: 'bbox', ...mapped[0] };
+          const others = mapped.slice(1).map(b => ({ type: 'bbox', ...b }));
+          return JSON.stringify({
+            coordinate_system: 'pixel',
+            origin: 'top-left',
+            image_size: { width: w, height: h },
+            primary,
+            others
+          });
+        }
+      }
+
       const boxes = [];
       const points = [];
 
