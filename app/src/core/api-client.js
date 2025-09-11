@@ -79,46 +79,51 @@ export class ApiClient {
       let res;
       attemptKind = 'single';
       if (endpointType === 'groundingdino') {
-        // For GroundingDINO servers that expect multipart/form-data
-        // Send exactly the fields the reference curl uses: file, prompt, thresholds
-        const fd = new FormData();
-        const mime = imageBlob?.type || 'image/png';
-        const ext = mime.includes('jpeg') ? 'jpg' : (mime.split('/')[1] || 'png');
-        const fname = `image.${ext}`;
-        const p = String(prompt ?? '');
-        const filePart = (imageBlob instanceof File) ? imageBlob : new File([imageBlob], fname, { type: mime });
-        fd.append('file', filePart, fname);
-        fd.append('prompt', p);
-        if (dinoBoxThreshold != null) fd.append('box_threshold', String(dinoBoxThreshold));
-        if (dinoTextThreshold != null) fd.append('text_threshold', String(dinoTextThreshold));
-        // Remove JSON content-type so browser sets multipart boundary
-        headers = this._sanitizeForMultipart(headers);
-        res = await fetch(url, { method: 'POST', headers, body: fd, signal: controller.signal });
-        // If server rejects multipart with generic client/server errors (not validation for file/prompt), retry JSON
-        let contentType0 = res.headers.get('content-type') || '';
-        let j0 = null;
-        if (contentType0.includes('application/json')) {
-          try { j0 = await res.clone().json(); } catch {}
-        } else {
+        // For GroundingDINO servers that expect multipart/form-data.
+        // Prefer the "image" field (as in newer servers), then fall back to "file".
+        const buildForm = (fieldName) => {
+          const fd = new FormData();
+          const mime = imageBlob?.type || 'image/png';
+          const ext = mime.includes('jpeg') ? 'jpg' : (mime.split('/')[1] || 'png');
+          const fname = `image.${ext}`;
+          const p = String(prompt ?? '');
+          const filePart = (imageBlob instanceof File) ? imageBlob : new File([imageBlob], fname, { type: mime });
+          fd.append(fieldName, filePart, fname);
+          fd.append('prompt', p);
+          if (dinoBoxThreshold != null) fd.append('box_threshold', String(dinoBoxThreshold));
+          if (dinoTextThreshold != null) fd.append('text_threshold', String(dinoTextThreshold));
+          return fd;
+        };
+
+        headers = this._sanitizeForMultipart(headers); // remove JSON content-type so browser sets multipart boundary
+        // Attempt 1: send as 'image'
+        res = await fetch(url, { method: 'POST', headers, body: buildForm('image'), signal: controller.signal });
+        let attempt = 'multipart-image';
+
+        // If server rejects multipart with generic client/server errors, try 'file' field next
+        if (!res.ok && [400, 401, 403, 404, 405, 406, 415, 422].includes(res.status)) {
           try { await res.clone().text(); } catch {}
-        }
-        const missingFileOrPrompt = !!(j0 && Array.isArray(j0.detail) && j0.detail.some(d => {
-          const loc = String(d?.loc?.join('.'));
-          return loc.includes('file') || loc.includes('prompt');
-        }));
-        const shouldRetryJson = (!res.ok && [400, 401, 403, 404, 405, 406, 415].includes(res.status));
-        if (shouldRetryJson) {
-          const jsonBody = buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64: b64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold });
-          const jsonHeaders = { 'Content-Type': 'application/json' };
           const controller2 = new AbortController();
           const to2 = setTimeout(() => controller2.abort('timeout'), timeoutMs);
-          const res2 = await fetch(url, { method: 'POST', headers: jsonHeaders, body: JSON.stringify(jsonBody), signal: controller2.signal });
+          const res2 = await fetch(url, { method: 'POST', headers, body: buildForm('file'), signal: controller2.signal });
           clearTimeout(to2);
           res = res2;
-          attemptKind = 'retry-json';
-        } else if (!res.ok && res.status === 422 && missingFileOrPrompt) {
-          // Keep the original error; do not switch to JSON because server expects multipart
+          attempt = 'multipart-file';
         }
+
+        // If still not OK and clearly a client/server issue, retry with JSON body
+        if (!res.ok && [400, 401, 403, 404, 405, 406, 415].includes(res.status)) {
+          const jsonBody = buildRequestBody({ endpointType, baseURL, model, temperature, maxTokens, prompt, sysPrompt, imageB64: b64, reasoningEffort, dinoBoxThreshold, dinoTextThreshold });
+          const jsonHeaders = { 'Content-Type': 'application/json' };
+          const controller3 = new AbortController();
+          const to3 = setTimeout(() => controller3.abort('timeout'), timeoutMs);
+          const res3 = await fetch(url, { method: 'POST', headers: jsonHeaders, body: JSON.stringify(jsonBody), signal: controller3.signal });
+          clearTimeout(to3);
+          res = res3;
+          attempt = `${attempt} -> retry-json`;
+        }
+
+        attemptKind = attempt;
       } else {
         res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal });
       }
@@ -195,7 +200,9 @@ export class ApiClient {
         url,
         headers: this._sanitizeHeaders(headers),
         bodyPreview: (endpointType === 'groundingdino')
-          ? (attemptKind === 'retry-json' ? 'multipart (initial) -> retried JSON (image+prompt+thresholds)' : 'multipart/form-data (file, prompt, thresholds)')
+          ? (attemptKind.includes('retry-json')
+              ? `${attemptKind} (prompt, thresholds)`
+              : `${attemptKind} (prompt, thresholds)`)
           : truncate(JSON.stringify(body), 1200)
       };
       const log = {
@@ -213,7 +220,9 @@ export class ApiClient {
         url,
         headers: this._sanitizeHeaders(headers),
         bodyPreview: (endpointType === 'groundingdino')
-          ? (attemptKind === 'retry-json' ? 'multipart (initial) -> retried JSON (image+prompt+thresholds)' : 'multipart/form-data (file, prompt, thresholds)')
+          ? (attemptKind.includes('retry-json')
+              ? `${attemptKind} (prompt, thresholds)`
+              : `${attemptKind} (prompt, thresholds)`)
           : truncate(JSON.stringify(body), 1200)
       };
       const log = {
@@ -381,14 +390,22 @@ export class ApiClient {
       }
 
       // Shape B: { detections: [{ x,y,width,height,confidence }] } in pixel units
+      // Also support nested: { detections: [{ bbox: { x,y,width,height }, score, label }] }
       if (Array.isArray(serverResponse.detections)) {
         for (const d of serverResponse.detections) {
+          const hasFlat = Number.isFinite(Number(d?.x)) || Number.isFinite(Number(d?.width));
+          const bb = d?.bbox;
+          const x = hasFlat ? Number(d.x || 0) : Number(bb?.x || 0);
+          const y = hasFlat ? Number(d.y || 0) : Number(bb?.y || 0);
+          const w2 = hasFlat ? Number(d.width || 0) : Number(bb?.width || 0);
+          const h2 = hasFlat ? Number(d.height || 0) : Number(bb?.height || 0);
+          const conf = (d.confidence != null) ? Number(d.confidence) : (d.score != null ? Number(d.score) : 0);
           boxes.push({
-            x: Math.max(0, Math.round(d.x || 0)),
-            y: Math.max(0, Math.round(d.y || 0)),
-            width: Math.max(0, Math.round(d.width || 0)),
-            height: Math.max(0, Math.round(d.height || 0)),
-            confidence: Math.max(0, Math.min(1, Number(d.confidence || 0)))
+            x: Math.max(0, Math.round(x || 0)),
+            y: Math.max(0, Math.round(y || 0)),
+            width: Math.max(0, Math.round(w2 || 0)),
+            height: Math.max(0, Math.round(h2 || 0)),
+            confidence: Math.max(0, Math.min(1, Number(conf || 0)))
           });
         }
       }
